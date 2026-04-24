@@ -14,38 +14,60 @@ After every backend slice: **test in Postman before touching React**. If it work
 
 ---
 
-## Phase 0 — Project Setup (no features yet)
+## Phase 0 — Single Project Setup (no features yet)
 
-**Goal:** Two empty projects that can talk to each other.
+**Goal:** One Laravel project that contains both the API and the React frontend.
 
-### Backend
+**Team rule:** one repo, one project root, one `.env`, one issue board. Backend and frontend work can still be split by folder, but setup, onboarding, and deployment stay unified.
+
+### Create the App
 ```bash
-composer create-project laravel/laravel smart-internship-api
-cd smart-internship-api
+composer create-project laravel/laravel smart-internship-platform
+cd smart-internship-platform
 composer require laravel/sanctum
 php artisan install:api
 ```
 
 - Configure `.env` with DB credentials (MySQL or PostgreSQL)
 - Run `php artisan migrate` (confirms DB connection works)
-- Enable CORS in `config/cors.php` for `http://localhost:5173`
+- Keep API routes under `/api/v1`
 
-### Frontend
+### Add React Inside Laravel
 ```bash
-npm create vite@latest smart-internship-frontend -- --template react
-cd smart-internship-frontend
-npm install axios react-router-dom
-npm install -D tailwindcss postcss autoprefixer
+npm install react react-dom axios react-router-dom
+npm install -D @vitejs/plugin-react tailwindcss postcss autoprefixer
 npx tailwindcss init -p
 ```
 
-- Create `src/api/axios.js` with base URL `http://localhost:8000/api/v1`
+- Configure `vite.config.js` to use `@vitejs/plugin-react`
+- Create React entry files under `resources/js`
+- Create `resources/js/api/axios.js` with base URL `/api/v1`
+- If using the Vite dev server, add a dev proxy from `/api` to `http://localhost:8000` so React can call the Laravel API without CORS friction
+- Add a Laravel web fallback route that returns the React app for frontend routes
 - Add request interceptor that reads token from `localStorage` and attaches `Authorization: Bearer {token}`
 
+Example local commands, both run from the same project root:
+```bash
+php artisan serve
+npm run dev
+```
+
+### Suggested Folder Boundary
+```text
+app/                 Laravel domain, services, policies, controllers
+routes/api.php       API routes
+routes/web.php       React app fallback route
+resources/js/        React app, pages, components, API clients
+resources/css/       Tailwind entry CSS
+database/            Migrations, factories, seeders
+tests/               Laravel feature/unit tests
+```
+
 ### Exit Criteria
-- `php artisan serve` runs on :8000
-- `npm run dev` runs on :5173
-- Browser can fetch a test endpoint from React without CORS errors
+- One project directory contains Laravel + React
+- `php artisan serve` runs on :8000 from the project root
+- `npm run dev` runs on :5173 from the same project root
+- Browser can fetch a test endpoint from React through `/api/v1` without CORS errors
 
 ---
 
@@ -74,12 +96,12 @@ npx tailwindcss init -p
 ### Frontend Tasks
 | # | Task | File(s) |
 |---|------|---------|
-| 1 | `AuthContext` — stores user + token, exposes `login`, `logout`, `register` | `src/contexts/AuthContext.jsx` |
-| 2 | `authApi.js` — wraps register/login/logout/me calls | `src/api/authApi.js` |
-| 3 | `Login.jsx` + `Register.jsx` pages | `src/pages/` |
-| 4 | `ProtectedRoute.jsx` wrapper | `src/components/common/` |
-| 5 | `RoleRoute.jsx` wrapper | `src/components/common/` |
-| 6 | Router setup with public + protected routes | `src/router/index.jsx` |
+| 1 | `AuthContext` — stores user + token, exposes `login`, `logout`, `register` | `resources/js/contexts/AuthContext.jsx` |
+| 2 | `authApi.js` — wraps register/login/logout/me calls | `resources/js/api/authApi.js` |
+| 3 | `Login.jsx` + `Register.jsx` pages | `resources/js/pages/` |
+| 4 | `ProtectedRoute.jsx` wrapper | `resources/js/components/common/` |
+| 5 | `RoleRoute.jsx` wrapper | `resources/js/components/common/` |
+| 6 | Router setup with public + protected routes | `resources/js/router/index.jsx` |
 
 ### Exit Criteria
 - Register a student from UI → see token in localStorage
@@ -417,7 +439,7 @@ npx tailwindcss init -p
 - PDF generation for offer letters
 - OAuth login (Google)
 - i18n (English/Arabic)
-- Deploy: Laravel Forge + Vercel, or Docker + VPS
+- Deploy: Laravel Forge/VPS with built Vite assets, or Docker + VPS
 
 ---
 
