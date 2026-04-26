@@ -4,6 +4,8 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Vite;
 
 Route::fallback(function () {
+    $reactRefresh = Vite::reactRefresh();
+
     $viteTags = Vite::useBuildDirectory('build')([
         'resources/css/app.css',
         'resources/js/main.jsx',
@@ -16,6 +18,7 @@ Route::fallback(function () {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Smart Internship Matching Platform</title>
+        {$reactRefresh}
         {$viteTags}
     </head>
     <body>

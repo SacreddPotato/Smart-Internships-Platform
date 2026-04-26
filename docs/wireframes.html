@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Smart Internship Platform Wireframes</title>
+    <style>
+        :root {
+            --page: #f4f5f7;
+            --panel: #ffffff;
+            --line: #c9ced6;
+            --line-dark: #8d96a6;
+            --ink: #202733;
+            --muted: #687386;
+            --soft: #eceff3;
+            --accent: #3d7d74;
+            --student: #376b9d;
+            --company: #7b5c2e;
+            --admin: #7a4f85;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--page);
+            color: var(--ink);
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.45;
+        }
+
+        .doc-header {
+            padding: 28px clamp(18px, 5vw, 56px);
+            background: #fff;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .doc-header h1 {
+            margin: 0 0 8px;
+            font-size: clamp(24px, 4vw, 40px);
+        }
+
+        .doc-header p {
+            max-width: 980px;
+            margin: 0;
+            color: var(--muted);
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .legend span {
+            padding: 6px 10px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: #fff;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .wireframe-grid {
+            display: grid;
+            gap: 28px;
+            padding: 28px clamp(18px, 5vw, 56px) 56px;
+        }
+
+        .wireframe {
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--panel);
+            box-shadow: 0 16px 36px rgba(32, 39, 51, 0.08);
+        }
+
+        .wireframe-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--line);
+            background: #fbfcfd;
+        }
+
+        .wireframe-title h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .wireframe-title p {
+            margin: 3px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .tag {
+            flex: 0 0 auto;
+            padding: 5px 9px;
+            border-radius: 999px;
+            background: var(--soft);
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .tag.student {
+            color: var(--student);
+        }
+
+        .tag.company {
+            color: var(--company);
+        }
+
+        .tag.admin {
+            color: var(--admin);
+        }
+
+        .frame {
+            min-height: 520px;
+            padding: 18px;
+            background: #f8f9fb;
+        }
+
+        .guest-shell {
+            display: grid;
+            grid-template-columns: minmax(240px, 0.9fr) minmax(320px, 1.1fr);
+            min-height: 480px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #fff;
+        }
+
+        .guest-brand {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 32px;
+            border-right: 1px solid var(--line);
+            background: #eef3f2;
+        }
+
+        .guest-form {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+        }
+
+        .form-card {
+            width: min(100%, 420px);
+        }
+
+        .app-shell {
+            display: grid;
+            grid-template-columns: 220px minmax(0, 1fr);
+            min-height: 520px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #fff;
+        }
+
+        .sidebar {
+            padding: 18px;
+            border-right: 1px solid var(--line);
+            background: #fbfcfd;
+        }
+
+        .main-area {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            min-width: 0;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .stack {
+            display: grid;
+            gap: 12px;
+        }
+
+        .split {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 320px;
+            gap: 18px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .table {
+            display: grid;
+            gap: 8px;
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .table-row {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 1fr 110px;
+            gap: 10px;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid var(--soft);
+            border-radius: 6px;
+        }
+
+        .box,
+        .line,
+        .button,
+        .input,
+        .pill,
+        .avatar,
+        .card,
+        .metric,
+        .textarea {
+            border: 1px solid var(--line);
+            background: #fff;
+        }
+
+        .line {
+            height: 12px;
+            border-radius: 999px;
+            background: var(--soft);
+        }
+
+        .line.short {
+            width: 44%;
+        }
+
+        .line.medium {
+            width: 68%;
+        }
+
+        .line.long {
+            width: 88%;
+        }
+
+        .button {
+            display: inline-flex;
+            width: 120px;
+            height: 36px;
+            align-items: center;
+            justify-content: center;
+            border-color: var(--line-dark);
+            border-radius: 6px;
+            background: #f9fafb;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .button.primary {
+            border-color: var(--accent);
+            background: #e5f0ed;
+            color: var(--accent);
+        }
+
+        .input {
+            height: 40px;
+            border-radius: 6px;
+            background: #fff;
+        }
+
+        .textarea {
+            height: 100px;
+            border-radius: 6px;
+        }
+
+        .pill {
+            width: 76px;
+            height: 26px;
+            border-radius: 999px;
+            background: var(--soft);
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--soft);
+        }
+
+        .logo {
+            width: 120px;
+            height: 28px;
+            border: 1px solid var(--line-dark);
+            border-radius: 6px;
+            background: #fff;
+        }
+
+        .nav-item {
+            height: 34px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: #fff;
+        }
+
+        .nav-item.active {
+            border-color: var(--accent);
+            background: #e5f0ed;
+        }
+
+        .card {
+            min-height: 130px;
+            padding: 14px;
+            border-radius: 8px;
+        }
+
+        .metric {
+            min-height: 86px;
+            padding: 14px;
+            border-radius: 8px;
+        }
+
+        .hero-block {
+            min-height: 190px;
+            padding: 18px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .side-panel {
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .filter-bar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 160px 120px;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .form-grid .wide {
+            grid-column: 1 / -1;
+        }
+
+        .mobile-note {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border: 1px dashed var(--line-dark);
+            border-radius: 8px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        @media (max-width: 860px) {
+            .guest-shell,
+            .app-shell,
+            .split,
+            .two-col {
+                grid-template-columns: 1fr;
+            }
+
+            .guest-brand,
+            .sidebar {
+                border-right: 0;
+                border-bottom: 1px solid var(--line);
+            }
+
+            .stats,
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            .filter-bar,
+            .form-grid,
+            .table-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="doc-header">
+        <h1>Smart Internship Platform Wireframes</h1>
+        <p>These are layout-only drafts. They show what each page should contain and how the two layout shells can be reused. No app CSS has been created yet.</p>
+        <div class="legend">
+            <span>GuestLayout: auth pages</span>
+            <span>DefaultLayout: app shell</span>
+            <span>Cards: repeated records</span>
+            <span>Tables: management views</span>
+            <span>Panels: forms/detail/sidebar areas</span>
+        </div>
+    </header>
+
+    <main class="wireframe-grid">
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Login</h2>
+                    <p>GuestLayout. Simple focused form with brand/context panel.</p>
+                </div>
+                <span class="tag">guest</span>
+            </div>
+            <div class="frame">
+                <div class="guest-shell">
+                    <aside class="guest-brand">
+                        <div class="stack">
+                            <div class="logo"></div>
+                            <div class="line long"></div>
+                            <div class="line medium"></div>
+                        </div>
+                        <div class="stack">
+                            <div class="card"></div>
+                            <div class="line medium"></div>
+                        </div>
+                    </aside>
+                    <section class="guest-form">
+                        <div class="form-card stack">
+                            <div class="line medium"></div>
+                            <div class="line short"></div>
+                            <div class="input"></div>
+                            <div class="input"></div>
+                            <div class="row" style="justify-content: space-between;">
+                                <div class="pill"></div>
+                                <div class="line short"></div>
+                            </div>
+                            <div class="button primary" style="width: 100%;"></div>
+                            <div class="line medium"></div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Register</h2>
+                    <p>GuestLayout. Same shell as login, with role selection and password confirmation.</p>
+                </div>
+                <span class="tag">guest</span>
+            </div>
+            <div class="frame">
+                <div class="guest-shell">
+                    <aside class="guest-brand">
+                        <div class="stack">
+                            <div class="logo"></div>
+                            <div class="line long"></div>
+                            <div class="line medium"></div>
+                        </div>
+                        <div class="stack">
+                            <div class="card"></div>
+                            <div class="line medium"></div>
+                        </div>
+                    </aside>
+                    <section class="guest-form">
+                        <div class="form-card stack">
+                            <div class="line medium"></div>
+                            <div class="line short"></div>
+                            <div class="two-col">
+                                <div class="input"></div>
+                                <div class="input"></div>
+                            </div>
+                            <div class="input"></div>
+                            <div class="two-col">
+                                <div class="input"></div>
+                                <div class="input"></div>
+                            </div>
+                            <div class="row">
+                                <div class="pill"></div>
+                                <div class="pill"></div>
+                                <div class="pill"></div>
+                            </div>
+                            <div class="button primary" style="width: 100%;"></div>
+                            <div class="line medium"></div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Home / Dashboard</h2>
+                    <p>DefaultLayout. The first signed-in screen with role-aware quick actions.</p>
+                </div>
+                <span class="tag">main</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack">
+                        <div class="logo"></div>
+                        <div class="nav-item active"></div>
+                        <div class="nav-item"></div>
+                        <div class="nav-item"></div>
+                        <div class="nav-item"></div>
+                    </aside>
+                    <section class="main-area">
+                        <div class="topbar">
+                            <div class="line medium"></div>
+                            <div class="row"><div class="pill"></div><div class="avatar"></div></div>
+                        </div>
+                        <div class="content">
+                            <div class="hero-block stack">
+                                <div class="line medium"></div>
+                                <div class="line long"></div>
+                                <div class="row"><div class="button primary"></div><div class="button"></div></div>
+                            </div>
+                            <div class="stats" style="margin-top: 18px;">
+                                <div class="metric"></div>
+                                <div class="metric"></div>
+                                <div class="metric"></div>
+                                <div class="metric"></div>
+                            </div>
+                            <div class="cards">
+                                <div class="card"></div>
+                                <div class="card"></div>
+                                <div class="card"></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Browse Internships</h2>
+                    <p>Public/DefaultLayout. Filter bar, card grid, pagination.</p>
+                </div>
+                <span class="tag">public</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack">
+                        <div class="logo"></div>
+                        <div class="nav-item active"></div>
+                        <div class="nav-item"></div>
+                        <div class="nav-item"></div>
+                    </aside>
+                    <section class="main-area">
+                        <div class="topbar"><div class="line medium"></div><div class="avatar"></div></div>
+                        <div class="content">
+                            <div class="filter-bar">
+                                <div class="input"></div>
+                                <div class="input"></div>
+                                <div class="button primary"></div>
+                            </div>
+                            <div class="cards">
+                                <div class="card stack"><div class="line medium"></div><div class="line long"></div><div class="row"><div class="pill"></div><div class="pill"></div></div></div>
+                                <div class="card stack"><div class="line medium"></div><div class="line long"></div><div class="row"><div class="pill"></div><div class="pill"></div></div></div>
+                                <div class="card stack"><div class="line medium"></div><div class="line long"></div><div class="row"><div class="pill"></div><div class="pill"></div></div></div>
+                                <div class="card stack"><div class="line medium"></div><div class="line long"></div><div class="row"><div class="pill"></div><div class="pill"></div></div></div>
+                                <div class="card stack"><div class="line medium"></div><div class="line long"></div><div class="row"><div class="pill"></div><div class="pill"></div></div></div>
+                                <div class="card stack"><div class="line medium"></div><div class="line long"></div><div class="row"><div class="pill"></div><div class="pill"></div></div></div>
+                            </div>
+                            <div class="row" style="justify-content: center; margin-top: 18px;">
+                                <div class="button"></div><div class="pill"></div><div class="button"></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Internship Detail</h2>
+                    <p>DefaultLayout. Main detail content plus apply/match summary panel.</p>
+                </div>
+                <span class="tag">public</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack">
+                        <div class="logo"></div><div class="nav-item active"></div><div class="nav-item"></div><div class="nav-item"></div>
+                    </aside>
+                    <section class="main-area">
+                        <div class="topbar"><div class="line medium"></div><div class="avatar"></div></div>
+                        <div class="content split">
+                            <article class="stack">
+                                <div class="hero-block stack">
+                                    <div class="line medium"></div>
+                                    <div class="line long"></div>
+                                    <div class="row"><div class="pill"></div><div class="pill"></div><div class="pill"></div></div>
+                                </div>
+                                <div class="card stack"><div class="line short"></div><div class="line long"></div><div class="line long"></div><div class="line medium"></div></div>
+                                <div class="card stack"><div class="line short"></div><div class="row"><div class="pill"></div><div class="pill"></div><div class="pill"></div></div></div>
+                            </article>
+                            <aside class="side-panel stack">
+                                <div class="metric"></div>
+                                <div class="button primary" style="width: 100%;"></div>
+                                <div class="button" style="width: 100%;"></div>
+                                <div class="line long"></div>
+                                <div class="line medium"></div>
+                            </aside>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Student Profile</h2>
+                    <p>Student page. Profile form, skill selector, CV upload.</p>
+                </div>
+                <span class="tag student">student</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack">
+                        <div class="logo"></div><div class="nav-item"></div><div class="nav-item active"></div><div class="nav-item"></div>
+                    </aside>
+                    <section class="main-area">
+                        <div class="topbar"><div class="line medium"></div><div class="avatar"></div></div>
+                        <div class="content split">
+                            <div class="side-panel stack">
+                                <div class="form-grid">
+                                    <div class="input"></div><div class="input"></div>
+                                    <div class="input"></div><div class="input"></div>
+                                    <div class="textarea wide"></div>
+                                </div>
+                                <div class="button primary"></div>
+                            </div>
+                            <aside class="stack">
+                                <div class="side-panel stack">
+                                    <div class="line medium"></div>
+                                    <div class="row"><div class="pill"></div><div class="pill"></div><div class="pill"></div></div>
+                                    <div class="input"></div>
+                                </div>
+                                <div class="side-panel stack">
+                                    <div class="line medium"></div>
+                                    <div class="box" style="height: 92px; border-radius: 8px;"></div>
+                                    <div class="button"></div>
+                                </div>
+                            </aside>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Student Applications</h2>
+                    <p>Student page. Track application statuses and scores.</p>
+                </div>
+                <span class="tag student">student</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack"><div class="logo"></div><div class="nav-item"></div><div class="nav-item active"></div><div class="nav-item"></div></aside>
+                    <section class="main-area">
+                        <div class="topbar"><div class="line medium"></div><div class="avatar"></div></div>
+                        <div class="content stack">
+                            <div class="row" style="justify-content: space-between;"><div class="line medium"></div><div class="input" style="width: 220px;"></div></div>
+                            <div class="table">
+                                <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                                <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                                <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                                <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Recommendations</h2>
+                    <p>Student page. Ranked internship cards by match score.</p>
+                </div>
+                <span class="tag student">student</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack"><div class="logo"></div><div class="nav-item"></div><div class="nav-item"></div><div class="nav-item active"></div></aside>
+                    <section class="main-area">
+                        <div class="topbar"><div class="line medium"></div><div class="avatar"></div></div>
+                        <div class="content">
+                            <div class="hero-block stack">
+                                <div class="line medium"></div>
+                                <div class="line long"></div>
+                            </div>
+                            <div class="cards" style="margin-top: 18px;">
+                                <div class="card stack"><div class="metric"></div><div class="line long"></div><div class="button primary"></div></div>
+                                <div class="card stack"><div class="metric"></div><div class="line long"></div><div class="button primary"></div></div>
+                                <div class="card stack"><div class="metric"></div><div class="line long"></div><div class="button primary"></div></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Company Internships</h2>
+                    <p>Company page. Own internship list with management actions.</p>
+                </div>
+                <span class="tag company">company</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack"><div class="logo"></div><div class="nav-item active"></div><div class="nav-item"></div><div class="nav-item"></div></aside>
+                    <section class="main-area">
+                        <div class="topbar"><div class="line medium"></div><div class="avatar"></div></div>
+                        <div class="content stack">
+                            <div class="row" style="justify-content: space-between;"><div class="line medium"></div><div class="button primary"></div></div>
+                            <div class="table">
+                                <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                                <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                                <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Create / Edit Internship</h2>
+                    <p>Company page. One reusable form for create and edit modes.</p>
+                </div>
+                <span class="tag company">company</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack"><div class="logo"></div><div class="nav-item active"></div><div class="nav-item"></div><div class="nav-item"></div></aside>
+                    <section class="main-area">
+                        <div class="topbar"><div class="line medium"></div><div class="avatar"></div></div>
+                        <div class="content split">
+                            <div class="side-panel stack">
+                                <div class="form-grid">
+                                    <div class="input wide"></div>
+                                    <div class="input"></div><div class="input"></div>
+                                    <div class="input"></div><div class="input"></div>
+                                    <div class="textarea wide"></div>
+                                    <div class="textarea wide"></div>
+                                </div>
+                                <div class="row"><div class="button primary"></div><div class="button"></div></div>
+                            </div>
+                            <aside class="side-panel stack">
+                                <div class="line medium"></div>
+                                <div class="row"><div class="pill"></div><div class="pill"></div></div>
+                                <div class="line long"></div>
+                                <div class="line medium"></div>
+                            </aside>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Archived Internships</h2>
+                    <p>Company page. Low-noise archive list.</p>
+                </div>
+                <span class="tag company">company</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack"><div class="logo"></div><div class="nav-item"></div><div class="nav-item active"></div><div class="nav-item"></div></aside>
+                    <section class="main-area">
+                        <div class="topbar"><div class="line medium"></div><div class="avatar"></div></div>
+                        <div class="content stack">
+                            <div class="line medium"></div>
+                            <div class="table">
+                                <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                                <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Applicants</h2>
+                    <p>Company page. Applicant table with status dropdown and CV link.</p>
+                </div>
+                <span class="tag company">company</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack"><div class="logo"></div><div class="nav-item"></div><div class="nav-item"></div><div class="nav-item active"></div></aside>
+                    <section class="main-area">
+                        <div class="topbar"><div class="line medium"></div><div class="avatar"></div></div>
+                        <div class="content stack">
+                            <div class="filter-bar"><div class="input"></div><div class="input"></div><div class="button"></div></div>
+                            <div class="table">
+                                <div class="table-row"><div class="row"><div class="avatar"></div><div class="line medium"></div></div><div class="pill"></div><div class="input"></div><div class="button"></div></div>
+                                <div class="table-row"><div class="row"><div class="avatar"></div><div class="line medium"></div></div><div class="pill"></div><div class="input"></div><div class="button"></div></div>
+                                <div class="table-row"><div class="row"><div class="avatar"></div><div class="line medium"></div></div><div class="pill"></div><div class="input"></div><div class="button"></div></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Admin Dashboard</h2>
+                    <p>Admin page. Stats, user management, platform oversight.</p>
+                </div>
+                <span class="tag admin">admin</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack"><div class="logo"></div><div class="nav-item active"></div><div class="nav-item"></div><div class="nav-item"></div></aside>
+                    <section class="main-area">
+                        <div class="topbar"><div class="line medium"></div><div class="avatar"></div></div>
+                        <div class="content">
+                            <div class="stats">
+                                <div class="metric"></div><div class="metric"></div><div class="metric"></div><div class="metric"></div>
+                            </div>
+                            <div class="two-col">
+                                <div class="table">
+                                    <div class="line medium"></div>
+                                    <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                                    <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                                </div>
+                                <div class="table">
+                                    <div class="line medium"></div>
+                                    <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                                    <div class="table-row"><div class="line long"></div><div class="pill"></div><div class="pill"></div><div class="button"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <section class="wireframe">
+            <div class="wireframe-title">
+                <div>
+                    <h2>Not Authorized / Empty States</h2>
+                    <p>Common states for 403, no data, and failed API calls.</p>
+                </div>
+                <span class="tag">common</span>
+            </div>
+            <div class="frame">
+                <div class="app-shell">
+                    <aside class="sidebar stack"><div class="logo"></div><div class="nav-item"></div><div class="nav-item"></div></aside>
+                    <section class="main-area">
+                        <div class="topbar"><div class="line medium"></div><div class="avatar"></div></div>
+                        <div class="content">
+                            <div class="side-panel stack" style="max-width: 560px; margin: 70px auto; text-align: center;">
+                                <div class="box" style="width: 88px; height: 88px; border-radius: 50%; margin: 0 auto;"></div>
+                                <div class="line medium" style="margin: 0 auto;"></div>
+                                <div class="line long" style="margin: 0 auto;"></div>
+                                <div class="row" style="justify-content: center;"><div class="button primary"></div><div class="button"></div></div>
+                            </div>
+                            <div class="mobile-note">Use this same centered state pattern for 403, empty lists, and recoverable API errors.</div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

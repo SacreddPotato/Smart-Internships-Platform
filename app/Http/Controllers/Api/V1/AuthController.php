@@ -7,20 +7,24 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
-use Hash;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
     public function register(RegisterRequest $request)
     {
         $user = User::create($request->validated());
-        $token = $user->createToken('auth_token')->plainTextToken;
+
+        Log::info('User registered', [
+            'user_id' => $user->id,
+            'role' => $user->role,
+        ]);
 
         return response()->json([
             'message' => 'User registered successfully',
-            'data' => new UserResource($user),
-            'token' => $token,
+            'user' => new UserResource($user),
         ], 201);
     }
 
@@ -29,6 +33,10 @@ class AuthController extends Controller
 
         $user = User::where('email', $credentials['email'])->first();
         if (!$user || !Hash::check($credentials['password'], $user->password)) {
+            Log::warning('Login failed', [
+                'reason' => 'invalid_credentials',
+            ]);
+
             return response()->json([
                 'message' => 'Invalid credentials',
             ], 401);
@@ -36,27 +44,53 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        Log::info('User logged in', [
+            'user_id' => $user->id,
+            'role' => $user->role,
+        ]);
+
         return response()->json([
             'message' => 'User logged in successfully',
-            'data' => new UserResource($user),
+            'user' => new UserResource($user),
             'token' => $token,
         ], 200);
     }
 
     public function logout(Request $request) {
         if (!$request->user()) {
+            Log::warning('Logout failed', [
+                'reason' => 'not_authenticated',
+            ]);
+
             return response()->json([
                 'message' => 'User not authenticated',
             ], 401);
         }
 
         if (!$request->user()->currentAccessToken()) {
+            Log::warning('Logout failed', [
+                'user_id' => $request->user()->id,
+                'reason' => 'missing_active_token',
+            ]);
+
             return response()->json([
                 'message' => 'No active token found',
             ], 401);
         }
 
-        $request->user()->currentAccessToken()->delete();
+        $token = $request->user()->currentAccessToken();
+
+        if (!$token) {
+            return response()->json([
+                'message' => 'No active token found',
+            ], 401);
+        }
+
+        $token->delete();
+
+        Log::info('User logged out', [
+            'user_id' => $request->user()->id,
+        ]);
 
         return response()->json([
             'message' => 'User logged out successfully',
@@ -64,8 +98,12 @@ class AuthController extends Controller
     }
 
     public function me(Request $request) {
+        Log::debug('Authenticated user requested', [
+            'user_id' => $request->user()->id,
+        ]);
+
         return response()->json([
-            'data' => new UserResource($request->user()),
+            'user' => new UserResource($request->user()),
         ], 200);
     }
 }
