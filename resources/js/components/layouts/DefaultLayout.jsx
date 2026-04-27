@@ -30,7 +30,6 @@ export default function DefaultLayout() {
                         <p>{user.role.charAt(0).toUpperCase() + user.role.slice(1)}</p>
                     </div>
                     <div className="topbar-actions">
-                        <span className="user-chip">{user?.name}</span>
                         <button className="btn btn-ghost" onClick={logout}>Logout</button>
                     </div>
                 </header>

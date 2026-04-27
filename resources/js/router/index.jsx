@@ -1,13 +1,15 @@
 import { createBrowserRouter } from "react-router-dom";
-import Login from "../pages/auth/Login";
-import Register from "../pages/auth/Register";
-import Dashboard from "../pages/Dashboard";
-import Forbidden from "../pages/errors/Forbidden";
 import DefaultLayout from "../components/layouts/DefaultLayout";
 import GuestLayout from "../components/layouts/GuestLayout";
 import IndexRedirect from "../components/common/IndexRedirect";
 import GuestOnlyRoute from "../components/common/GuestOnlyRoute";
 import ProtectedRoute from "../components/common/ProtectedRoute";
+import Login from "../pages/auth/Login";
+import Register from "../pages/auth/Register";
+import Dashboard from "../pages/Dashboard";
+import Forbidden from "../pages/errors/Forbidden";
+import Browse from "../pages/internships/Browse";
+import Detail from "../pages/internships/Detail";
 
 const router = createBrowserRouter([
     {
@@ -42,14 +44,14 @@ const router = createBrowserRouter([
                         path: "/dashboard",
                         element: <Dashboard />
                     },
-                    // {
-                    //     path: "/internships",
-                    //     element: <Browse />
-                    // },
-                    // {
-                    //     path: "/internships/:id",
-                    //     element: <Detail />
-                    // },
+                    {
+                        path: "/internships",
+                        element: <Browse />
+                    },
+                    {
+                        path: "/internships/:id",
+                        element: <Detail />
+                    },
                     {
                         path: "/403",
                         element: <Forbidden />

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
@@ -16,6 +17,12 @@ class AuthController extends Controller
     public function register(RegisterRequest $request)
     {
         $user = User::create($request->validated());
+
+        if ($user->role === UserRole::COMPANY) {
+            $user->companyProfile()->create([
+                'company_name' => $user->name
+            ]);
+        }
 
         Log::info('User registered', [
             'user_id' => $user->id,

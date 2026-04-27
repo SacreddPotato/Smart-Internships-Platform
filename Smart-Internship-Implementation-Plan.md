@@ -1365,6 +1365,423 @@ These routes live inside the existing `/api/v1` group.
 
 Both routes are children of `DefaultLayout`. They can be public routes if you want browsing without login, but they still use the main app shell.
 
+### Exact Backend Files To Create In This Slice
+
+Use this as the concrete migration/model blueprint. The generated migration filenames will include your current timestamp, so the exact prefix will differ.
+
+Run:
+
+```bash
+php artisan make:model CompanyProfile -mfs
+php artisan make:model Skill -mfs
+php artisan make:model Internship -mfs
+php artisan make:migration create_internship_skill_table
+php artisan make:resource CompanyProfileResource
+php artisan make:resource SkillResource
+php artisan make:resource InternshipResource
+php artisan make:resource InternshipCollection
+php artisan make:controller Api/V1/InternshipController
+php artisan make:controller Api/V1/SkillController
+```
+
+Create `app/Enums/InternshipStatus.php`:
+
+```php
+<?php
+
+namespace App\Enums;
+
+enum InternshipStatus: string
+{
+    case Open = 'open';
+    case Archived = 'archived';
+    case Closed = 'closed';
+}
+```
+
+Create `app/Enums/InternshipType.php`:
+
+```php
+<?php
+
+namespace App\Enums;
+
+enum InternshipType: string
+{
+    case Remote = 'remote';
+    case Onsite = 'onsite';
+    case Hybrid = 'hybrid';
+}
+```
+
+Update the generated `create_company_profiles_table` migration:
+
+```php
+Schema::create('company_profiles', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('user_id')->unique()->constrained()->cascadeOnDelete();
+    $table->string('company_name');
+    $table->string('industry')->nullable();
+    $table->string('website')->nullable();
+    $table->text('description')->nullable();
+    $table->timestamps();
+
+    $table->index('company_name');
+});
+```
+
+Why these columns exist:
+
+- `user_id`: links the login account to the company profile.
+- `company_name`: public name displayed on internship cards.
+- `industry`, `website`, `description`: optional public profile details.
+- unique `user_id`: one company account owns one company profile.
+
+Update the generated `create_skills_table` migration:
+
+```php
+Schema::create('skills', function (Blueprint $table) {
+    $table->id();
+    $table->string('name')->unique();
+    $table->timestamps();
+});
+```
+
+Update the generated `create_internships_table` migration:
+
+```php
+Schema::create('internships', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('company_profile_id')->constrained()->cascadeOnDelete();
+    $table->string('title');
+    $table->text('description');
+    $table->text('requirements')->nullable();
+    $table->string('location');
+    $table->string('type')->default('remote');
+    $table->string('status')->default('open');
+    $table->date('starts_at')->nullable();
+    $table->date('ends_at')->nullable();
+    $table->timestamp('archived_at')->nullable();
+    $table->timestamps();
+
+    $table->index(['status', 'type']);
+    $table->index('company_profile_id');
+});
+```
+
+Why these columns exist:
+
+- `company_profile_id`: identifies the company that owns the posting.
+- `title`, `description`, `requirements`: the posting content.
+- `location`: display and future search/filter value.
+- `type`: `remote`, `onsite`, or `hybrid`.
+- `status`: `open`, `archived`, or `closed`.
+- `starts_at`, `ends_at`: optional internship dates.
+- `archived_at`: lets the archived page show when the company archived it.
+
+Update the generated `create_internship_skill_table` migration:
+
+```php
+Schema::create('internship_skill', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('internship_id')->constrained()->cascadeOnDelete();
+    $table->foreignId('skill_id')->constrained()->cascadeOnDelete();
+    $table->timestamps();
+
+    $table->unique(['internship_id', 'skill_id']);
+    $table->index('skill_id');
+});
+```
+
+Create `app/Models/CompanyProfile.php`:
+
+```php
+<?php
+
+namespace App\Models;
+
+use Database\Factories\CompanyProfileFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+#[Fillable(['user_id', 'company_name', 'industry', 'website', 'description'])]
+class CompanyProfile extends Model
+{
+    /** @use HasFactory<CompanyProfileFactory> */
+    use HasFactory;
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function internships(): HasMany
+    {
+        return $this->hasMany(Internship::class);
+    }
+}
+```
+
+Create `app/Models/Skill.php`:
+
+```php
+<?php
+
+namespace App\Models;
+
+use Database\Factories\SkillFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
+#[Fillable(['name'])]
+class Skill extends Model
+{
+    /** @use HasFactory<SkillFactory> */
+    use HasFactory;
+
+    public function internships(): BelongsToMany
+    {
+        return $this->belongsToMany(Internship::class)->withTimestamps();
+    }
+}
+```
+
+Create `app/Models/Internship.php`:
+
+```php
+<?php
+
+namespace App\Models;
+
+use App\Enums\InternshipStatus;
+use App\Enums\InternshipType;
+use Database\Factories\InternshipFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
+#[Fillable([
+    'company_profile_id',
+    'title',
+    'description',
+    'requirements',
+    'location',
+    'type',
+    'status',
+    'starts_at',
+    'ends_at',
+    'archived_at',
+])]
+class Internship extends Model
+{
+    /** @use HasFactory<InternshipFactory> */
+    use HasFactory;
+
+    protected function casts(): array
+    {
+        return [
+            'type' => InternshipType::class,
+            'status' => InternshipStatus::class,
+            'starts_at' => 'date',
+            'ends_at' => 'date',
+            'archived_at' => 'datetime',
+        ];
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(CompanyProfile::class, 'company_profile_id');
+    }
+
+    public function skills(): BelongsToMany
+    {
+        return $this->belongsToMany(Skill::class)->withTimestamps();
+    }
+}
+```
+
+Update `app/Models/User.php` with this relationship:
+
+```php
+use Illuminate\Database\Eloquent\Relations\HasOne;
+
+public function companyProfile(): HasOne
+{
+    return $this->hasOne(CompanyProfile::class);
+}
+```
+
+After these models exist, update Slice 1 registration logic in `app/Http/Controllers/Api/V1/AuthController.php` so company users get their required profile row:
+
+```php
+if ($user->role === UserRole::Company) {
+    $user->companyProfile()->create([
+        'company_name' => $user->name,
+    ]);
+}
+```
+
+Create `app/Http/Resources/CompanyProfileResource.php`:
+
+```php
+public function toArray(Request $request): array
+{
+    return [
+        'id' => $this->id,
+        'company_name' => $this->company_name,
+        'industry' => $this->industry,
+        'website' => $this->website,
+        'description' => $this->description,
+    ];
+}
+```
+
+Create `app/Http/Resources/SkillResource.php`:
+
+```php
+public function toArray(Request $request): array
+{
+    return [
+        'id' => $this->id,
+        'name' => $this->name,
+    ];
+}
+```
+
+Create `app/Http/Resources/InternshipResource.php`:
+
+```php
+public function toArray(Request $request): array
+{
+    return [
+        'id' => $this->id,
+        'title' => $this->title,
+        'description' => $this->description,
+        'requirements' => $this->requirements,
+        'location' => $this->location,
+        'type' => $this->type?->value ?? $this->type,
+        'status' => $this->status?->value ?? $this->status,
+        'starts_at' => $this->starts_at?->toDateString(),
+        'ends_at' => $this->ends_at?->toDateString(),
+        'archived_at' => $this->archived_at?->toISOString(),
+        'company' => new CompanyProfileResource($this->whenLoaded('company')),
+        'skills' => SkillResource::collection($this->whenLoaded('skills')),
+        'created_at' => $this->created_at?->toISOString(),
+        'updated_at' => $this->updated_at?->toISOString(),
+    ];
+}
+```
+
+Create `app/Http/Resources/InternshipCollection.php`:
+
+```php
+public function toArray(Request $request): array
+{
+    return [
+        'data' => InternshipResource::collection($this->collection),
+        'meta' => [
+            'current_page' => $this->resource->currentPage(),
+            'last_page' => $this->resource->lastPage(),
+            'per_page' => $this->resource->perPage(),
+            'total' => $this->resource->total(),
+        ],
+    ];
+}
+```
+
+Create the read methods in `app/Http/Controllers/Api/V1/InternshipController.php`:
+
+```php
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Enums\InternshipStatus;
+use App\Http\Controllers\Controller;
+use App\Http\Resources\InternshipCollection;
+use App\Http\Resources\InternshipResource;
+use App\Models\Internship;
+use Illuminate\Http\Request;
+
+class InternshipController extends Controller
+{
+    public function index(Request $request): InternshipCollection
+    {
+        $query = Internship::query()
+            ->with(['company', 'skills'])
+            ->where('status', InternshipStatus::Open->value);
+
+        if ($search = $request->query('search')) {
+            $query->where(function ($builder) use ($search): void {
+                $builder->where('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhereHas('company', fn ($company) => $company->where('company_name', 'like', "%{$search}%"))
+                    ->orWhereHas('skills', fn ($skills) => $skills->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        if ($type = $request->query('type')) {
+            $query->where('type', $type);
+        }
+
+        if ($skillId = $request->query('skill')) {
+            $query->whereHas('skills', fn ($skills) => $skills->whereKey($skillId));
+        }
+
+        return new InternshipCollection(
+            $query->latest()->paginate(12)->withQueryString()
+        );
+    }
+
+    public function show(Internship $internship): InternshipResource
+    {
+        return new InternshipResource(
+            $internship->load(['company', 'skills'])
+        );
+    }
+}
+```
+
+Update `routes/api.php` inside the existing `Route::prefix('v1')->group(...)`:
+
+```php
+use App\Http\Controllers\Api\V1\InternshipController;
+use App\Http\Controllers\Api\V1\SkillController;
+
+Route::get('/skills', [SkillController::class, 'index']);
+Route::get('/internships', [InternshipController::class, 'index']);
+Route::get('/internships/{internship}', [InternshipController::class, 'show']);
+```
+
+Create `app/Http/Controllers/Api/V1/SkillController.php`:
+
+```php
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Http\Resources\SkillResource;
+use App\Models\Skill;
+
+class SkillController extends Controller
+{
+    public function index()
+    {
+        return SkillResource::collection(
+            Skill::query()->orderBy('name')->get()
+        );
+    }
+}
+```
+
 ### Backend Walkthrough
 
 #### Step 1 - Create internship-related tables
@@ -1469,6 +1886,376 @@ Both routes are children of `DefaultLayout`. They can be public routes if you wa
 - [ ] `GET /api/v1/internships/1` returns one with company + skills nested.
 - [ ] `GET /api/v1/internships?search=react` filters results.
 
+### Exact Frontend Files To Create Or Update In This Slice
+
+Create these folders if missing:
+
+```text
+resources/js/api/
+resources/js/components/common/
+resources/js/components/internships/
+resources/js/pages/internships/
+```
+
+Create `resources/js/api/internshipApi.js`:
+
+```js
+import api from './axios';
+
+export function fetchAll(filters = {}) {
+    return api.get('/internships', { params: filters });
+}
+
+export function fetchOne(id) {
+    return api.get(`/internships/${id}`);
+}
+```
+
+Create `resources/js/api/skillApi.js`:
+
+```js
+import api from './axios';
+
+export function fetchAll() {
+    return api.get('/skills');
+}
+```
+
+Create `resources/js/components/common/LoadingSpinner.jsx`:
+
+```jsx
+export default function LoadingSpinner({ label = 'Loading...' }) {
+    return (
+        <div className="loading-state" role="status" aria-live="polite">
+            <span className="spinner" aria-hidden="true" />
+            <span>{label}</span>
+        </div>
+    );
+}
+```
+
+Create `resources/js/components/common/ErrorAlert.jsx`:
+
+```jsx
+export default function ErrorAlert({ message }) {
+    if (!message) {
+        return null;
+    }
+
+    return (
+        <div className="alert alert-error" role="alert">
+            {message}
+        </div>
+    );
+}
+```
+
+Create `resources/js/components/common/Pagination.jsx`:
+
+```jsx
+export default function Pagination({ meta, onPageChange }) {
+    if (!meta || meta.last_page <= 1) {
+        return null;
+    }
+
+    const currentPage = meta.current_page;
+
+    return (
+        <nav className="pagination" aria-label="Pagination">
+            <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={currentPage <= 1}
+                onClick={() => onPageChange(currentPage - 1)}
+            >
+                Previous
+            </button>
+
+            <span className="pagination-status">
+                Page {currentPage} of {meta.last_page}
+            </span>
+
+            <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={currentPage >= meta.last_page}
+                onClick={() => onPageChange(currentPage + 1)}
+            >
+                Next
+            </button>
+        </nav>
+    );
+}
+```
+
+Create `resources/js/components/internships/InternshipCard.jsx`:
+
+```jsx
+import { Link } from 'react-router-dom';
+
+export default function InternshipCard({ internship }) {
+    return (
+        <article className="internship-card">
+            <div className="card-main">
+                <h2 className="card-title">{internship.title}</h2>
+                <div className="card-meta">
+                    <span>{internship.company?.company_name ?? 'Unknown company'}</span>
+                    <span>{internship.location}</span>
+                    <span>{internship.type}</span>
+                </div>
+                <p className="card-copy">{internship.description}</p>
+            </div>
+
+            <div className="skill-list">
+                {(internship.skills ?? []).map((skill) => (
+                    <span className="skill-pill" key={skill.id}>{skill.name}</span>
+                ))}
+            </div>
+
+            <Link className="btn btn-secondary" to={`/internships/${internship.id}`}>
+                View details
+            </Link>
+        </article>
+    );
+}
+```
+
+Create `resources/js/components/internships/InternshipList.jsx`:
+
+```jsx
+import InternshipCard from './InternshipCard';
+
+export default function InternshipList({ internships }) {
+    if (internships.length === 0) {
+        return (
+            <div className="empty-state">
+                <h2 className="empty-state-title">No internships found</h2>
+                <p className="empty-state-copy">Try changing the search or type filter.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="card-grid">
+            {internships.map((internship) => (
+                <InternshipCard key={internship.id} internship={internship} />
+            ))}
+        </div>
+    );
+}
+```
+
+Create `resources/js/components/internships/InternshipFilters.jsx`:
+
+```jsx
+export default function InternshipFilters({ filters, onChange, onSubmit }) {
+    function updateField(event) {
+        onChange({
+            ...filters,
+            [event.target.name]: event.target.value,
+            page: 1,
+        });
+    }
+
+    return (
+        <form className="filter-bar" onSubmit={onSubmit}>
+            <input
+                className="form-input"
+                name="search"
+                type="search"
+                value={filters.search}
+                onChange={updateField}
+                placeholder="Search internships"
+            />
+
+            <select
+                className="form-select"
+                name="type"
+                value={filters.type}
+                onChange={updateField}
+            >
+                <option value="">All types</option>
+                <option value="remote">Remote</option>
+                <option value="onsite">Onsite</option>
+                <option value="hybrid">Hybrid</option>
+            </select>
+
+            <button className="btn btn-secondary" type="submit">
+                Filter
+            </button>
+        </form>
+    );
+}
+```
+
+Create `resources/js/pages/internships/Browse.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+import * as internshipApi from '../../api/internshipApi';
+import ErrorAlert from '../../components/common/ErrorAlert';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+import Pagination from '../../components/common/Pagination';
+import InternshipFilters from '../../components/internships/InternshipFilters';
+import InternshipList from '../../components/internships/InternshipList';
+
+export default function Browse() {
+    const [internships, setInternships] = useState([]);
+    const [meta, setMeta] = useState(null);
+    const [filters, setFilters] = useState({ search: '', type: '', page: 1 });
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        async function loadInternships() {
+            setLoading(true);
+            setError(null);
+
+            try {
+                const response = await internshipApi.fetchAll(filters);
+                setInternships(response.data.data);
+                setMeta(response.data.meta);
+            } catch {
+                setError('Could not load internships.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadInternships();
+    }, [filters]);
+
+    function handleSubmit(event) {
+        event.preventDefault();
+        setFilters((current) => ({ ...current, page: 1 }));
+    }
+
+    return (
+        <>
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Browse Internships</h1>
+                    <p className="page-subtitle">Find open internships by role, company, location, and work type.</p>
+                </div>
+            </div>
+
+            <InternshipFilters filters={filters} onChange={setFilters} onSubmit={handleSubmit} />
+            <ErrorAlert message={error} />
+
+            {loading ? (
+                <LoadingSpinner label="Loading internships..." />
+            ) : (
+                <>
+                    <InternshipList internships={internships} />
+                    <Pagination
+                        meta={meta}
+                        onPageChange={(page) => setFilters((current) => ({ ...current, page }))}
+                    />
+                </>
+            )}
+        </>
+    );
+}
+```
+
+Create `resources/js/pages/internships/Detail.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import * as internshipApi from '../../api/internshipApi';
+import ErrorAlert from '../../components/common/ErrorAlert';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+
+export default function Detail() {
+    const { id } = useParams();
+    const [internship, setInternship] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        async function loadInternship() {
+            setLoading(true);
+            setError(null);
+
+            try {
+                const response = await internshipApi.fetchOne(id);
+                setInternship(response.data.data);
+            } catch {
+                setError('Could not load internship details.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadInternship();
+    }, [id]);
+
+    if (loading) {
+        return <LoadingSpinner label="Loading internship..." />;
+    }
+
+    if (error) {
+        return <ErrorAlert message={error} />;
+    }
+
+    return (
+        <div className="detail-layout">
+            <main className="detail-main">
+                <section className="surface">
+                    <h1 className="page-title">{internship.title}</h1>
+                    <p className="page-subtitle">{internship.company?.company_name}</p>
+                    <div className="card-meta">
+                        <span>{internship.location}</span>
+                        <span>{internship.type}</span>
+                        <span>{internship.status}</span>
+                    </div>
+                </section>
+
+                <section className="surface">
+                    <h2 className="section-title">Description</h2>
+                    <p className="section-copy">{internship.description}</p>
+                </section>
+
+                <section className="surface">
+                    <h2 className="section-title">Requirements</h2>
+                    <p className="section-copy">{internship.requirements ?? 'No requirements listed.'}</p>
+                </section>
+            </main>
+
+            <aside className="detail-sidebar surface-muted">
+                <h2 className="section-title">Skills</h2>
+                <div className="skill-list">
+                    {(internship.skills ?? []).map((skill) => (
+                        <span className="skill-pill" key={skill.id}>{skill.name}</span>
+                    ))}
+                </div>
+            </aside>
+        </div>
+    );
+}
+```
+
+Update `resources/js/router/index.jsx`:
+
+```jsx
+import Browse from '../pages/internships/Browse';
+import Detail from '../pages/internships/Detail';
+```
+
+Inside the existing `DefaultLayout` children array, add:
+
+```jsx
+{
+    path: '/internships',
+    element: <Browse />,
+},
+{
+    path: '/internships/:id',
+    element: <Detail />,
+},
+```
+
 ### Frontend Walkthrough
 
 #### Step 1 - Create the internship API client
@@ -1505,7 +2292,7 @@ Expected internship fields from the API:
 
 - `internship.id`
 - `internship.title`
-- `internship.company.name`
+- `internship.company.company_name`
 - `internship.location`
 - `internship.type`
 - `internship.description`
@@ -1828,6 +2615,313 @@ Route::middleware(['auth:sanctum', 'role:company'])->group(function () {
 
 All four routes must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['company']}`, and `DefaultLayout`.
 
+### Exact Backend Files To Create Or Update In This Slice
+
+Run:
+
+```bash
+php artisan make:request Internships/StoreInternshipRequest
+php artisan make:request Internships/UpdateInternshipRequest
+php artisan make:policy InternshipPolicy --model=Internship
+```
+
+Manually create:
+
+```text
+app/Services/InternshipService.php
+```
+
+Update `app/Http/Requests/Internships/StoreInternshipRequest.php`:
+
+```php
+<?php
+
+namespace App\Http\Requests\Internships;
+
+use App\Enums\InternshipType;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class StoreInternshipRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['required', 'string'],
+            'requirements' => ['nullable', 'string'],
+            'location' => ['required', 'string', 'max:255'],
+            'type' => ['required', Rule::enum(InternshipType::class)],
+            'starts_at' => ['nullable', 'date'],
+            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
+            'skills' => ['array'],
+            'skills.*' => ['integer', 'exists:skills,id'],
+        ];
+    }
+}
+```
+
+Update `app/Http/Requests/Internships/UpdateInternshipRequest.php`:
+
+```php
+<?php
+
+namespace App\Http\Requests\Internships;
+
+use App\Enums\InternshipType;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class UpdateInternshipRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
+            'description' => ['sometimes', 'required', 'string'],
+            'requirements' => ['nullable', 'string'],
+            'location' => ['sometimes', 'required', 'string', 'max:255'],
+            'type' => ['sometimes', 'required', Rule::enum(InternshipType::class)],
+            'starts_at' => ['nullable', 'date'],
+            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
+            'skills' => ['sometimes', 'array'],
+            'skills.*' => ['integer', 'exists:skills,id'],
+        ];
+    }
+}
+```
+
+Update `app/Policies/InternshipPolicy.php`:
+
+```php
+<?php
+
+namespace App\Policies;
+
+use App\Enums\UserRole;
+use App\Models\Internship;
+use App\Models\User;
+
+class InternshipPolicy
+{
+    public function create(User $user): bool
+    {
+        return $user->role === UserRole::Company;
+    }
+
+    public function update(User $user, Internship $internship): bool
+    {
+        return $this->ownsInternship($user, $internship);
+    }
+
+    public function delete(User $user, Internship $internship): bool
+    {
+        return $this->ownsInternship($user, $internship);
+    }
+
+    public function archive(User $user, Internship $internship): bool
+    {
+        return $this->ownsInternship($user, $internship);
+    }
+
+    private function ownsInternship(User $user, Internship $internship): bool
+    {
+        return $user->role === UserRole::Company
+            && $user->companyProfile !== null
+            && $internship->company_profile_id === $user->companyProfile->id;
+    }
+}
+```
+
+Register the policy in `app/Providers/AppServiceProvider.php`:
+
+```php
+use App\Models\Internship;
+use App\Policies\InternshipPolicy;
+use Illuminate\Support\Facades\Gate;
+
+public function boot(): void
+{
+    Gate::policy(Internship::class, InternshipPolicy::class);
+}
+```
+
+Create `app/Services/InternshipService.php`:
+
+```php
+<?php
+
+namespace App\Services;
+
+use App\Enums\InternshipStatus;
+use App\Models\Internship;
+use App\Models\User;
+use Illuminate\Support\Arr;
+
+class InternshipService
+{
+    public function create(User $user, array $data): Internship
+    {
+        $companyProfile = $user->companyProfile;
+
+        abort_if(! $companyProfile, 422, 'Company profile is required before creating internships.');
+
+        $skillIds = Arr::pull($data, 'skills', []);
+
+        $internship = $companyProfile->internships()->create([
+            ...$data,
+            'status' => InternshipStatus::Open,
+        ]);
+
+        $internship->skills()->sync($skillIds);
+
+        return $internship->load(['company', 'skills']);
+    }
+
+    public function update(Internship $internship, array $data): Internship
+    {
+        $skillIds = Arr::pull($data, 'skills', null);
+
+        $internship->update($data);
+
+        if ($skillIds !== null) {
+            $internship->skills()->sync($skillIds);
+        }
+
+        return $internship->load(['company', 'skills']);
+    }
+
+    public function archive(Internship $internship): Internship
+    {
+        $internship->update([
+            'status' => InternshipStatus::Archived,
+            'archived_at' => now(),
+        ]);
+
+        return $internship->load(['company', 'skills']);
+    }
+
+    public function delete(Internship $internship): void
+    {
+        $internship->delete();
+    }
+}
+```
+
+Soft deletes are needed for `delete()`. Create the migration:
+
+```bash
+php artisan make:migration add_soft_deletes_to_internships_table --table=internships
+```
+
+Put this in `up()`:
+
+```php
+Schema::table('internships', function (Blueprint $table) {
+    $table->softDeletes();
+});
+```
+
+Put this in `down()`:
+
+```php
+Schema::table('internships', function (Blueprint $table) {
+    $table->dropSoftDeletes();
+});
+```
+
+Update `app/Models/Internship.php`:
+
+```php
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+use HasFactory, SoftDeletes;
+```
+
+Add these methods to `app/Http/Controllers/Api/V1/InternshipController.php`:
+
+```php
+use App\Http\Requests\Internships\StoreInternshipRequest;
+use App\Http\Requests\Internships\UpdateInternshipRequest;
+use App\Services\InternshipService;
+
+public function companyIndex(Request $request): InternshipCollection
+{
+    $companyProfile = $request->user()->companyProfile;
+
+    abort_if(! $companyProfile, 422, 'Company profile is required.');
+
+    return new InternshipCollection(
+        $companyProfile->internships()
+            ->with(['company', 'skills'])
+            ->where('status', '!=', InternshipStatus::Archived->value)
+            ->latest()
+            ->paginate(12)
+    );
+}
+
+public function archived(Request $request): InternshipCollection
+{
+    $companyProfile = $request->user()->companyProfile;
+
+    abort_if(! $companyProfile, 422, 'Company profile is required.');
+
+    return new InternshipCollection(
+        $companyProfile->internships()
+            ->with(['company', 'skills'])
+            ->where('status', InternshipStatus::Archived->value)
+            ->latest('archived_at')
+            ->paginate(12)
+    );
+}
+
+public function store(StoreInternshipRequest $request, InternshipService $service): InternshipResource
+{
+    $this->authorize('create', Internship::class);
+
+    return new InternshipResource(
+        $service->create($request->user(), $request->validated())
+    );
+}
+
+public function update(UpdateInternshipRequest $request, Internship $internship, InternshipService $service): InternshipResource
+{
+    $this->authorize('update', $internship);
+
+    return new InternshipResource(
+        $service->update($internship, $request->validated())
+    );
+}
+
+public function archive(Internship $internship, InternshipService $service): InternshipResource
+{
+    $this->authorize('archive', $internship);
+
+    return new InternshipResource(
+        $service->archive($internship)
+    );
+}
+
+public function destroy(Internship $internship, InternshipService $service)
+{
+    $this->authorize('delete', $internship);
+
+    $service->delete($internship);
+
+    return response()->noContent();
+}
+```
+
 ### Backend Walkthrough
 
 #### Step 1 - Wire company profiles to users
@@ -1934,6 +3028,455 @@ All four routes must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['comp
 - [ ] `DELETE /api/v1/internships/{id}` soft-deletes.
 - [ ] `PATCH /api/v1/internships/{id}/archive` changes status.
 - [ ] `GET /api/v1/company/internships/archived` returns only archived.
+
+### Exact Frontend Files To Create Or Update In This Slice
+
+Update `resources/js/api/internshipApi.js` by keeping the Slice 2 exports and adding:
+
+```js
+export function create(payload) {
+    return api.post('/internships', payload);
+}
+
+export function update(id, payload) {
+    return api.put(`/internships/${id}`, payload);
+}
+
+export function remove(id) {
+    return api.delete(`/internships/${id}`);
+}
+
+export function archive(id) {
+    return api.patch(`/internships/${id}/archive`);
+}
+
+export function fetchMine(params = {}) {
+    return api.get('/company/internships', { params });
+}
+
+export function fetchArchived(params = {}) {
+    return api.get('/company/internships/archived', { params });
+}
+```
+
+Create `resources/js/components/internships/InternshipForm.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+
+const emptyValues = {
+    title: '',
+    description: '',
+    requirements: '',
+    location: '',
+    type: 'remote',
+    starts_at: '',
+    ends_at: '',
+    skills: [],
+};
+
+export default function InternshipForm({ initialValues, skills = [], onSubmit, submitting = false, errors = {} }) {
+    const [form, setForm] = useState(emptyValues);
+
+    useEffect(() => {
+        if (initialValues) {
+            setForm({
+                ...emptyValues,
+                ...initialValues,
+                skills: initialValues.skills?.map((skill) => skill.id) ?? [],
+            });
+        }
+    }, [initialValues]);
+
+    function updateField(event) {
+        setForm({
+            ...form,
+            [event.target.name]: event.target.value,
+        });
+    }
+
+    function toggleSkill(skillId) {
+        setForm((current) => ({
+            ...current,
+            skills: current.skills.includes(skillId)
+                ? current.skills.filter((id) => id !== skillId)
+                : [...current.skills, skillId],
+        }));
+    }
+
+    function handleSubmit(event) {
+        event.preventDefault();
+        onSubmit(form);
+    }
+
+    return (
+        <form className="form-stack" onSubmit={handleSubmit}>
+            <div className="form-grid">
+                <label className="form-group">
+                    <span>Title</span>
+                    <input className="form-input" name="title" value={form.title} onChange={updateField} />
+                    {errors.title && <span className="form-error">{errors.title[0]}</span>}
+                </label>
+
+                <label className="form-group">
+                    <span>Location</span>
+                    <input className="form-input" name="location" value={form.location} onChange={updateField} />
+                    {errors.location && <span className="form-error">{errors.location[0]}</span>}
+                </label>
+
+                <label className="form-group">
+                    <span>Type</span>
+                    <select className="form-select" name="type" value={form.type} onChange={updateField}>
+                        <option value="remote">Remote</option>
+                        <option value="onsite">Onsite</option>
+                        <option value="hybrid">Hybrid</option>
+                    </select>
+                    {errors.type && <span className="form-error">{errors.type[0]}</span>}
+                </label>
+
+                <label className="form-group">
+                    <span>Starts at</span>
+                    <input className="form-input" type="date" name="starts_at" value={form.starts_at ?? ''} onChange={updateField} />
+                    {errors.starts_at && <span className="form-error">{errors.starts_at[0]}</span>}
+                </label>
+
+                <label className="form-group">
+                    <span>Ends at</span>
+                    <input className="form-input" type="date" name="ends_at" value={form.ends_at ?? ''} onChange={updateField} />
+                    {errors.ends_at && <span className="form-error">{errors.ends_at[0]}</span>}
+                </label>
+
+                <label className="form-group form-wide">
+                    <span>Description</span>
+                    <textarea className="form-textarea" name="description" value={form.description} onChange={updateField} />
+                    {errors.description && <span className="form-error">{errors.description[0]}</span>}
+                </label>
+
+                <label className="form-group form-wide">
+                    <span>Requirements</span>
+                    <textarea className="form-textarea" name="requirements" value={form.requirements ?? ''} onChange={updateField} />
+                    {errors.requirements && <span className="form-error">{errors.requirements[0]}</span>}
+                </label>
+            </div>
+
+            <fieldset className="form-group">
+                <legend>Skills</legend>
+                <div className="choice-grid">
+                    {skills.map((skill) => (
+                        <label className="choice-row" key={skill.id}>
+                            <input
+                                type="checkbox"
+                                checked={form.skills.includes(skill.id)}
+                                onChange={() => toggleSkill(skill.id)}
+                            />
+                            <span>{skill.name}</span>
+                        </label>
+                    ))}
+                </div>
+                {errors.skills && <span className="form-error">{errors.skills[0]}</span>}
+            </fieldset>
+
+            <div className="form-actions">
+                <button className="btn btn-primary" type="submit" disabled={submitting}>
+                    {submitting ? 'Saving...' : 'Save internship'}
+                </button>
+            </div>
+        </form>
+    );
+}
+```
+
+Create `resources/js/pages/company/InternshipCreate.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as internshipApi from '../../api/internshipApi';
+import * as skillApi from '../../api/skillApi';
+import InternshipForm from '../../components/internships/InternshipForm';
+
+export default function InternshipCreate() {
+    const navigate = useNavigate();
+    const [skills, setSkills] = useState([]);
+    const [errors, setErrors] = useState({});
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        skillApi.fetchAll().then((response) => setSkills(response.data.data));
+    }, []);
+
+    async function handleSubmit(values) {
+        setSubmitting(true);
+        setErrors({});
+
+        try {
+            await internshipApi.create(values);
+            navigate('/company/internships');
+        } catch (error) {
+            if (error.response?.status === 422) {
+                setErrors(error.response.data.errors ?? {});
+            }
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    return (
+        <>
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Create Internship</h1>
+                    <p className="page-subtitle">Publish a new opportunity for students.</p>
+                </div>
+            </div>
+
+            <section className="surface">
+                <InternshipForm skills={skills} onSubmit={handleSubmit} submitting={submitting} errors={errors} />
+            </section>
+        </>
+    );
+}
+```
+
+Create `resources/js/pages/company/InternshipEdit.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import * as internshipApi from '../../api/internshipApi';
+import * as skillApi from '../../api/skillApi';
+import ErrorAlert from '../../components/common/ErrorAlert';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+import InternshipForm from '../../components/internships/InternshipForm';
+
+export default function InternshipEdit() {
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const [internship, setInternship] = useState(null);
+    const [skills, setSkills] = useState([]);
+    const [errors, setErrors] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        async function loadFormData() {
+            try {
+                const [internshipResponse, skillsResponse] = await Promise.all([
+                    internshipApi.fetchOne(id),
+                    skillApi.fetchAll(),
+                ]);
+
+                setInternship(internshipResponse.data.data);
+                setSkills(skillsResponse.data.data);
+            } catch {
+                setError('Could not load internship.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadFormData();
+    }, [id]);
+
+    async function handleSubmit(values) {
+        setSubmitting(true);
+        setErrors({});
+
+        try {
+            await internshipApi.update(id, values);
+            navigate('/company/internships');
+        } catch (error) {
+            if (error.response?.status === 422) {
+                setErrors(error.response.data.errors ?? {});
+            }
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    if (loading) return <LoadingSpinner label="Loading internship..." />;
+    if (error) return <ErrorAlert message={error} />;
+
+    return (
+        <section className="surface">
+            <InternshipForm
+                initialValues={internship}
+                skills={skills}
+                onSubmit={handleSubmit}
+                submitting={submitting}
+                errors={errors}
+            />
+        </section>
+    );
+}
+```
+
+Create `resources/js/pages/company/Internships.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import * as internshipApi from '../../api/internshipApi';
+import ErrorAlert from '../../components/common/ErrorAlert';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+
+export default function Internships() {
+    const [internships, setInternships] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    async function loadInternships() {
+        setLoading(true);
+
+        try {
+            const response = await internshipApi.fetchMine();
+            setInternships(response.data.data);
+        } catch {
+            setError('Could not load your internships.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        loadInternships();
+    }, []);
+
+    async function handleArchive(id) {
+        await internshipApi.archive(id);
+        await loadInternships();
+    }
+
+    async function handleDelete(id) {
+        if (!window.confirm('Delete this internship?')) return;
+        await internshipApi.remove(id);
+        await loadInternships();
+    }
+
+    return (
+        <>
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">My Internships</h1>
+                    <p className="page-subtitle">Manage opportunities published by your company.</p>
+                </div>
+                <Link className="btn btn-primary" to="/company/internships/create">Create Internship</Link>
+            </div>
+
+            <ErrorAlert message={error} />
+            {loading ? <LoadingSpinner /> : (
+                <div className="table-shell">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Type</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {internships.map((internship) => (
+                                <tr key={internship.id}>
+                                    <td>{internship.title}</td>
+                                    <td>{internship.status}</td>
+                                    <td>{internship.type}</td>
+                                    <td className="row-actions">
+                                        <Link className="btn btn-secondary" to={`/company/internships/${internship.id}/edit`}>Edit</Link>
+                                        <button className="btn btn-ghost" type="button" onClick={() => handleArchive(internship.id)}>Archive</button>
+                                        <button className="btn btn-danger" type="button" onClick={() => handleDelete(internship.id)}>Delete</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </>
+    );
+}
+```
+
+Create `resources/js/pages/company/ArchivedInternships.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+import * as internshipApi from '../../api/internshipApi';
+import ErrorAlert from '../../components/common/ErrorAlert';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+
+export default function ArchivedInternships() {
+    const [internships, setInternships] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        async function loadArchived() {
+            try {
+                const response = await internshipApi.fetchArchived();
+                setInternships(response.data.data);
+            } catch {
+                setError('Could not load archived internships.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadArchived();
+    }, []);
+
+    return (
+        <>
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Archived Internships</h1>
+                    <p className="page-subtitle">Review opportunities your company has archived.</p>
+                </div>
+            </div>
+
+            <ErrorAlert message={error} />
+            {loading ? <LoadingSpinner /> : (
+                <div className="card-grid">
+                    {internships.map((internship) => (
+                        <article className="internship-card" key={internship.id}>
+                            <h2 className="card-title">{internship.title}</h2>
+                            <div className="card-meta">
+                                <span>{internship.type}</span>
+                                <span>{internship.archived_at ?? internship.updated_at}</span>
+                            </div>
+                        </article>
+                    ))}
+                </div>
+            )}
+        </>
+    );
+}
+```
+
+Update `resources/js/router/index.jsx`:
+
+```jsx
+import RoleRoute from '../components/common/RoleRoute';
+import ArchivedInternships from '../pages/company/ArchivedInternships';
+import InternshipCreate from '../pages/company/InternshipCreate';
+import InternshipEdit from '../pages/company/InternshipEdit';
+import Internships from '../pages/company/Internships';
+```
+
+Inside the protected `DefaultLayout` children array, add a role-protected group:
+
+```jsx
+{
+    element: <RoleRoute allowedRoles={['company']} />,
+    children: [
+        { path: '/company/internships', element: <Internships /> },
+        { path: '/company/internships/create', element: <InternshipCreate /> },
+        { path: '/company/internships/:id/edit', element: <InternshipEdit /> },
+        { path: '/company/internships/archived', element: <ArchivedInternships /> },
+    ],
+},
+```
 
 ### Frontend Walkthrough
 
@@ -2280,11 +3823,9 @@ Route::middleware(['auth:sanctum', 'role:student'])->group(function () {
     Route::post('/student/profile/cv', [StudentProfileController::class, 'uploadCv']);
     Route::put('/student/skills', [StudentSkillController::class, 'sync']);
 });
-
-Route::get('/skills', [StudentSkillController::class, 'index']);
 ```
 
-`GET /skills` can be public because it only returns skill names.
+`GET /skills` was already added in Slice 2 through `SkillController`; reuse it here for the skill selector.
 
 **Profile response shape:**
 
@@ -2318,6 +3859,276 @@ Route::get('/skills', [StudentSkillController::class, 'index']);
 - `/student/profile`
 
 This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['student']}`, and `DefaultLayout`.
+
+### Exact Backend Files To Create Or Update In This Slice
+
+Run:
+
+```bash
+php artisan make:model StudentProfile -mfs
+php artisan make:migration create_student_skill_table
+php artisan make:request Student/UpdateProfileRequest
+php artisan make:request Student/UploadCvRequest
+php artisan make:resource StudentProfileResource
+php artisan make:controller Api/V1/StudentProfileController
+php artisan make:controller Api/V1/StudentSkillController
+php artisan storage:link
+```
+
+Update the generated `create_student_profiles_table` migration:
+
+```php
+Schema::create('student_profiles', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('user_id')->unique()->constrained()->cascadeOnDelete();
+    $table->string('university')->nullable();
+    $table->string('major')->nullable();
+    $table->decimal('gpa', 3, 2)->nullable();
+    $table->unsignedSmallInteger('graduation_year')->nullable();
+    $table->text('bio')->nullable();
+    $table->string('cv_path')->nullable();
+    $table->timestamps();
+});
+```
+
+Update the generated `create_student_skill_table` migration:
+
+```php
+Schema::create('student_skill', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('student_profile_id')->constrained()->cascadeOnDelete();
+    $table->foreignId('skill_id')->constrained()->cascadeOnDelete();
+    $table->timestamps();
+
+    $table->unique(['student_profile_id', 'skill_id']);
+    $table->index('skill_id');
+});
+```
+
+Create `app/Models/StudentProfile.php`:
+
+```php
+<?php
+
+namespace App\Models;
+
+use Database\Factories\StudentProfileFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
+#[Fillable(['user_id', 'university', 'major', 'gpa', 'graduation_year', 'bio', 'cv_path'])]
+class StudentProfile extends Model
+{
+    /** @use HasFactory<StudentProfileFactory> */
+    use HasFactory;
+
+    protected function casts(): array
+    {
+        return [
+            'gpa' => 'decimal:2',
+            'graduation_year' => 'integer',
+        ];
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function skills(): BelongsToMany
+    {
+        return $this->belongsToMany(Skill::class, 'student_skill')->withTimestamps();
+    }
+}
+```
+
+Update `app/Models/User.php`:
+
+```php
+public function studentProfile(): HasOne
+{
+    return $this->hasOne(StudentProfile::class);
+}
+```
+
+Update `app/Http/Requests/Student/UpdateProfileRequest.php`:
+
+```php
+public function authorize(): bool
+{
+    return true;
+}
+
+public function rules(): array
+{
+    return [
+        'university' => ['nullable', 'string', 'max:255'],
+        'major' => ['nullable', 'string', 'max:255'],
+        'gpa' => ['nullable', 'numeric', 'min:0', 'max:4'],
+        'graduation_year' => ['nullable', 'integer', 'between:2020,2040'],
+        'bio' => ['nullable', 'string', 'max:2000'],
+    ];
+}
+```
+
+Update `app/Http/Requests/Student/UploadCvRequest.php`:
+
+```php
+public function authorize(): bool
+{
+    return true;
+}
+
+public function rules(): array
+{
+    return [
+        'cv' => ['required', 'file', 'mimes:pdf', 'max:4096'],
+    ];
+}
+```
+
+Create `app/Http/Resources/StudentProfileResource.php`:
+
+```php
+use Illuminate\Support\Facades\Storage;
+
+public function toArray(Request $request): array
+{
+    return [
+        'id' => $this->id,
+        'name' => $this->user?->name,
+        'email' => $this->user?->email,
+        'university' => $this->university,
+        'major' => $this->major,
+        'gpa' => $this->gpa === null ? null : (float) $this->gpa,
+        'graduation_year' => $this->graduation_year,
+        'bio' => $this->bio,
+        'cv_path' => $this->cv_path,
+        'cv_url' => $this->cv_path ? Storage::disk('public')->url($this->cv_path) : null,
+        'skills' => SkillResource::collection($this->whenLoaded('skills')),
+    ];
+}
+```
+
+Create `app/Services/StudentProfileService.php` manually:
+
+```php
+<?php
+
+namespace App\Services;
+
+use App\Models\StudentProfile;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+
+class StudentProfileService
+{
+    public function updateProfile(StudentProfile $profile, array $data): StudentProfile
+    {
+        $profile->update($data);
+
+        return $profile->load(['user', 'skills']);
+    }
+
+    public function syncSkills(StudentProfile $profile, array $skillIds): StudentProfile
+    {
+        $profile->skills()->sync($skillIds);
+
+        return $profile->load(['user', 'skills']);
+    }
+
+    public function uploadCv(StudentProfile $profile, UploadedFile $file): StudentProfile
+    {
+        if ($profile->cv_path) {
+            Storage::disk('public')->delete($profile->cv_path);
+        }
+
+        $profile->update([
+            'cv_path' => $file->store('cvs', 'public'),
+        ]);
+
+        return $profile->load(['user', 'skills']);
+    }
+}
+```
+
+Create `app/Http/Controllers/Api/V1/StudentProfileController.php`:
+
+```php
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Student\UpdateProfileRequest;
+use App\Http\Requests\Student\UploadCvRequest;
+use App\Http\Resources\StudentProfileResource;
+use App\Services\StudentProfileService;
+use Illuminate\Http\Request;
+
+class StudentProfileController extends Controller
+{
+    public function show(Request $request): StudentProfileResource
+    {
+        $profile = $request->user()
+            ->studentProfile()
+            ->firstOrCreate([]);
+
+        return new StudentProfileResource($profile->load(['user', 'skills']));
+    }
+
+    public function update(UpdateProfileRequest $request, StudentProfileService $service): StudentProfileResource
+    {
+        $profile = $request->user()->studentProfile()->firstOrCreate([]);
+
+        return new StudentProfileResource(
+            $service->updateProfile($profile, $request->validated())
+        );
+    }
+
+    public function uploadCv(UploadCvRequest $request, StudentProfileService $service): StudentProfileResource
+    {
+        $profile = $request->user()->studentProfile()->firstOrCreate([]);
+
+        return new StudentProfileResource(
+            $service->uploadCv($profile, $request->file('cv'))
+        );
+    }
+}
+```
+
+Create `app/Http/Controllers/Api/V1/StudentSkillController.php`:
+
+```php
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Http\Resources\StudentProfileResource;
+use App\Services\StudentProfileService;
+use Illuminate\Http\Request;
+
+class StudentSkillController extends Controller
+{
+    public function sync(Request $request, StudentProfileService $service): StudentProfileResource
+    {
+        $data = $request->validate([
+            'skills' => ['array'],
+            'skills.*' => ['integer', 'exists:skills,id'],
+        ]);
+
+        $profile = $request->user()->studentProfile()->firstOrCreate([]);
+
+        return new StudentProfileResource(
+            $service->syncSkills($profile, $data['skills'] ?? [])
+        );
+    }
+}
+```
 
 ### Backend Walkthrough
 
@@ -2399,9 +4210,9 @@ This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['student']
 
 **Why we do this:** Skills are used later for match scoring, recommendations, and application review.
 
-**What this does:** `index` lists all available skills; `sync` replaces the student's selected skill IDs.
+**What this does:** `sync` replaces the student's selected skill IDs. The public skill list already comes from `SkillController@index` in Slice 2.
 
-**Do this:** Create `StudentSkillController` with `index` and `sync`.
+**Do this:** Create `StudentSkillController` with `sync`.
 
 **Check:** Sending `[1, 3, 5]` as skill IDs updates the pivot table.
 
@@ -2413,7 +4224,7 @@ This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['student']
 
 **What this does:** Routes use `auth:sanctum` and `role:student`.
 
-**Do this:** In `routes/api.php`, add `GET/PUT /student/profile`, `POST /student/profile/cv`, `GET /skills`, and `PUT /student/skills`.
+**Do this:** In `routes/api.php`, add `GET/PUT /student/profile`, `POST /student/profile/cv`, and `PUT /student/skills`. Keep using the existing public `GET /skills` route from Slice 2.
 
 **Check:** Company users receive `403`; guests receive `401`.
 
@@ -2436,6 +4247,312 @@ This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['student']
 - [ ] `POST /api/v1/student/profile/cv` with multipart file stores in `storage/app/...`.
 - [ ] File size/type validation rejects oversize or non-PDF.
 
+### Exact Frontend Files To Create Or Update In This Slice
+
+Create `resources/js/api/studentApi.js`:
+
+```js
+import api from './axios';
+
+export function fetchProfile() {
+    return api.get('/student/profile');
+}
+
+export function updateProfile(payload) {
+    return api.put('/student/profile', payload);
+}
+
+export function uploadCv(file, onUploadProgress) {
+    const formData = new FormData();
+    formData.append('cv', file);
+
+    return api.post('/student/profile/cv', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress,
+    });
+}
+
+export function syncSkills(skillIds) {
+    return api.put('/student/skills', { skills: skillIds });
+}
+```
+
+Use `resources/js/api/skillApi.js` from Slice 2 to load the public skill list:
+
+```js
+import * as skillApi from '../../api/skillApi';
+```
+
+Create `resources/js/components/student/ProfileForm.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+
+const emptyProfile = {
+    university: '',
+    major: '',
+    gpa: '',
+    graduation_year: '',
+    bio: '',
+};
+
+export default function ProfileForm({ profile, onSubmit, submitting = false, errors = {} }) {
+    const [form, setForm] = useState(emptyProfile);
+
+    useEffect(() => {
+        if (profile) {
+            setForm({
+                university: profile.university ?? '',
+                major: profile.major ?? '',
+                gpa: profile.gpa ?? '',
+                graduation_year: profile.graduation_year ?? '',
+                bio: profile.bio ?? '',
+            });
+        }
+    }, [profile]);
+
+    function updateField(event) {
+        setForm({
+            ...form,
+            [event.target.name]: event.target.value,
+        });
+    }
+
+    function handleSubmit(event) {
+        event.preventDefault();
+        onSubmit(form);
+    }
+
+    return (
+        <form className="form-stack" onSubmit={handleSubmit}>
+            <div className="form-grid">
+                <label className="form-group">
+                    <span>University</span>
+                    <input className="form-input" name="university" value={form.university} onChange={updateField} />
+                    {errors.university && <span className="form-error">{errors.university[0]}</span>}
+                </label>
+
+                <label className="form-group">
+                    <span>Major</span>
+                    <input className="form-input" name="major" value={form.major} onChange={updateField} />
+                    {errors.major && <span className="form-error">{errors.major[0]}</span>}
+                </label>
+
+                <label className="form-group">
+                    <span>GPA</span>
+                    <input className="form-input" name="gpa" type="number" step="0.01" min="0" max="4" value={form.gpa} onChange={updateField} />
+                    {errors.gpa && <span className="form-error">{errors.gpa[0]}</span>}
+                </label>
+
+                <label className="form-group">
+                    <span>Graduation year</span>
+                    <input className="form-input" name="graduation_year" type="number" value={form.graduation_year} onChange={updateField} />
+                    {errors.graduation_year && <span className="form-error">{errors.graduation_year[0]}</span>}
+                </label>
+
+                <label className="form-group form-wide">
+                    <span>Bio</span>
+                    <textarea className="form-textarea" name="bio" value={form.bio} onChange={updateField} />
+                    {errors.bio && <span className="form-error">{errors.bio[0]}</span>}
+                </label>
+            </div>
+
+            <div className="form-actions">
+                <button className="btn btn-primary" type="submit" disabled={submitting}>
+                    {submitting ? 'Saving...' : 'Save profile'}
+                </button>
+            </div>
+        </form>
+    );
+}
+```
+
+Create `resources/js/components/common/SkillSelector.jsx`:
+
+```jsx
+export default function SkillSelector({ skills, selectedIds, onChange }) {
+    function toggleSkill(skillId) {
+        onChange(
+            selectedIds.includes(skillId)
+                ? selectedIds.filter((id) => id !== skillId)
+                : [...selectedIds, skillId],
+        );
+    }
+
+    return (
+        <div className="choice-grid">
+            {skills.map((skill) => (
+                <label className="choice-row" key={skill.id}>
+                    <input
+                        type="checkbox"
+                        checked={selectedIds.includes(skill.id)}
+                        onChange={() => toggleSkill(skill.id)}
+                    />
+                    <span>{skill.name}</span>
+                </label>
+            ))}
+        </div>
+    );
+}
+```
+
+Create `resources/js/components/common/FileUpload.jsx`:
+
+```jsx
+import { useState } from 'react';
+
+export default function FileUpload({ accept, onUpload }) {
+    const [file, setFile] = useState(null);
+
+    function handleSubmit(event) {
+        event.preventDefault();
+        if (file) {
+            onUpload(file);
+        }
+    }
+
+    return (
+        <form className="form-stack" onSubmit={handleSubmit}>
+            <input
+                className="form-input"
+                type="file"
+                accept={accept}
+                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+            <button className="btn btn-secondary" type="submit" disabled={!file}>
+                Upload CV
+            </button>
+        </form>
+    );
+}
+```
+
+Create `resources/js/pages/student/Profile.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+import * as skillApi from '../../api/skillApi';
+import * as studentApi from '../../api/studentApi';
+import ErrorAlert from '../../components/common/ErrorAlert';
+import FileUpload from '../../components/common/FileUpload';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+import SkillSelector from '../../components/common/SkillSelector';
+import ProfileForm from '../../components/student/ProfileForm';
+
+export default function Profile() {
+    const [profile, setProfile] = useState(null);
+    const [skills, setSkills] = useState([]);
+    const [selectedSkillIds, setSelectedSkillIds] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [errors, setErrors] = useState({});
+    const [error, setError] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
+
+    async function loadProfile() {
+        setLoading(true);
+
+        try {
+            const [profileResponse, skillsResponse] = await Promise.all([
+                studentApi.fetchProfile(),
+                skillApi.fetchAll(),
+            ]);
+
+            setProfile(profileResponse.data.data);
+            setSkills(skillsResponse.data.data);
+            setSelectedSkillIds(profileResponse.data.data.skills?.map((skill) => skill.id) ?? []);
+        } catch {
+            setError('Could not load your profile.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        loadProfile();
+    }, []);
+
+    async function handleProfileSubmit(values) {
+        setSubmitting(true);
+        setErrors({});
+
+        try {
+            const response = await studentApi.updateProfile(values);
+            setProfile(response.data.data);
+        } catch (error) {
+            if (error.response?.status === 422) {
+                setErrors(error.response.data.errors ?? {});
+            }
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    async function handleSkillSave() {
+        const response = await studentApi.syncSkills(selectedSkillIds);
+        setProfile(response.data.data);
+    }
+
+    async function handleCvUpload(file) {
+        const response = await studentApi.uploadCv(file);
+        setProfile(response.data.data);
+    }
+
+    if (loading) return <LoadingSpinner label="Loading profile..." />;
+
+    return (
+        <>
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Student Profile</h1>
+                    <p className="page-subtitle">Keep your academic details, skills, and CV up to date.</p>
+                </div>
+            </div>
+
+            <ErrorAlert message={error} />
+
+            <div className="detail-layout">
+                <main className="detail-main">
+                    <section className="surface">
+                        <ProfileForm profile={profile} onSubmit={handleProfileSubmit} submitting={submitting} errors={errors} />
+                    </section>
+
+                    <section className="surface">
+                        <h2 className="section-title">Skills</h2>
+                        <SkillSelector skills={skills} selectedIds={selectedSkillIds} onChange={setSelectedSkillIds} />
+                        <button className="btn btn-primary" type="button" onClick={handleSkillSave}>
+                            Save skills
+                        </button>
+                    </section>
+                </main>
+
+                <aside className="detail-sidebar surface-muted">
+                    <h2 className="section-title">CV</h2>
+                    {profile?.cv_url && <a href={profile.cv_url} target="_blank" rel="noreferrer">View current CV</a>}
+                    <FileUpload accept="application/pdf" onUpload={handleCvUpload} />
+                </aside>
+            </div>
+        </>
+    );
+}
+```
+
+Update `resources/js/router/index.jsx`:
+
+```jsx
+import Profile from '../pages/student/Profile';
+```
+
+Inside the student role route group:
+
+```jsx
+{
+    element: <RoleRoute allowedRoles={['student']} />,
+    children: [
+        { path: '/student/profile', element: <Profile /> },
+    ],
+},
+```
+
 ### Frontend Walkthrough
 
 #### Step 1 - Create the student API client
@@ -2444,9 +4561,9 @@ This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['student']
 
 **Why we do this:** Profile pages, skill selectors, and CV uploads should not duplicate URLs.
 
-**What this does:** `studentApi.js` exposes profile, skill, and upload functions.
+**What this does:** `studentApi.js` exposes profile, CV upload, and student skill sync functions. The public skill list stays in `skillApi.js` from Slice 2.
 
-**Do this:** Create `resources/js/api/studentApi.js` with `fetchProfile`, `updateProfile`, `uploadCv`, `fetchSkills`, and `syncSkills`.
+**Do this:** Create `resources/js/api/studentApi.js` with `fetchProfile`, `updateProfile`, `uploadCv`, and `syncSkills`.
 
 **Check:** Upload uses `multipart/form-data` through `FormData`.
 
@@ -2616,7 +4733,7 @@ Load both profile and skills on page load:
 
 ```js
 const profileResponse = await studentApi.fetchProfile();
-const skillsResponse = await studentApi.fetchSkills();
+const skillsResponse = await skillApi.fetchAll();
 ```
 
 Submit handlers:
@@ -2764,6 +4881,253 @@ This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['student']
 
 Add an Apply button that opens `ApplyModal` for logged-in students.
 
+### Exact Backend Files To Create Or Update In This Slice
+
+Run:
+
+```bash
+php artisan make:model Application -mfs
+php artisan make:request Applications/StoreApplicationRequest
+php artisan make:resource ApplicationResource
+php artisan make:controller Api/V1/ApplicationController
+```
+
+Manually create:
+
+```text
+app/Enums/ApplicationStatus.php
+app/Services/ApplicationService.php
+```
+
+Update the generated `create_applications_table` migration:
+
+```php
+Schema::create('applications', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('student_profile_id')->constrained()->cascadeOnDelete();
+    $table->foreignId('internship_id')->constrained()->cascadeOnDelete();
+    $table->string('status')->default('pending');
+    $table->unsignedTinyInteger('match_score')->default(0);
+    $table->text('message')->nullable();
+    $table->timestamp('reviewed_at')->nullable();
+    $table->timestamps();
+
+    $table->unique(['student_profile_id', 'internship_id']);
+    $table->index(['status', 'match_score']);
+});
+```
+
+Create `app/Enums/ApplicationStatus.php`:
+
+```php
+<?php
+
+namespace App\Enums;
+
+enum ApplicationStatus: string
+{
+    case Pending = 'pending';
+    case Reviewed = 'reviewed';
+    case Accepted = 'accepted';
+    case Rejected = 'rejected';
+}
+```
+
+Create `app/Models/Application.php`:
+
+```php
+<?php
+
+namespace App\Models;
+
+use App\Enums\ApplicationStatus;
+use Database\Factories\ApplicationFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+#[Fillable(['student_profile_id', 'internship_id', 'status', 'match_score', 'message', 'reviewed_at'])]
+class Application extends Model
+{
+    /** @use HasFactory<ApplicationFactory> */
+    use HasFactory;
+
+    protected function casts(): array
+    {
+        return [
+            'status' => ApplicationStatus::class,
+            'match_score' => 'integer',
+            'reviewed_at' => 'datetime',
+        ];
+    }
+
+    public function studentProfile(): BelongsTo
+    {
+        return $this->belongsTo(StudentProfile::class);
+    }
+
+    public function internship(): BelongsTo
+    {
+        return $this->belongsTo(Internship::class);
+    }
+}
+```
+
+Update `app/Models/StudentProfile.php`:
+
+```php
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+public function applications(): HasMany
+{
+    return $this->hasMany(Application::class);
+}
+```
+
+Update `app/Models/Internship.php`:
+
+```php
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+public function applications(): HasMany
+{
+    return $this->hasMany(Application::class);
+}
+```
+
+Update `app/Http/Requests/Applications/StoreApplicationRequest.php`:
+
+```php
+public function authorize(): bool
+{
+    return true;
+}
+
+public function rules(): array
+{
+    return [
+        'message' => ['nullable', 'string', 'max:2000'],
+    ];
+}
+```
+
+Create `app/Http/Resources/ApplicationResource.php`:
+
+```php
+public function toArray(Request $request): array
+{
+    return [
+        'id' => $this->id,
+        'status' => $this->status?->value ?? $this->status,
+        'match_score' => $this->match_score,
+        'message' => $this->message,
+        'reviewed_at' => $this->reviewed_at?->toISOString(),
+        'created_at' => $this->created_at?->toISOString(),
+        'internship' => new InternshipResource($this->whenLoaded('internship')),
+        'student' => new StudentProfileResource($this->whenLoaded('studentProfile')),
+    ];
+}
+```
+
+Create `app/Services/ApplicationService.php`. Slice 6 will replace the temporary score with the real scoring service; for now this keeps the endpoint working:
+
+```php
+<?php
+
+namespace App\Services;
+
+use App\Enums\ApplicationStatus;
+use App\Enums\InternshipStatus;
+use App\Models\Application;
+use App\Models\Internship;
+use App\Models\StudentProfile;
+
+class ApplicationService
+{
+    public function apply(StudentProfile $studentProfile, Internship $internship, array $data = []): Application
+    {
+        abort_if($internship->status !== InternshipStatus::Open, 422, 'This internship is not open for applications.');
+
+        return Application::query()->create([
+            'student_profile_id' => $studentProfile->id,
+            'internship_id' => $internship->id,
+            'status' => ApplicationStatus::Pending,
+            'match_score' => 0,
+            'message' => $data['message'] ?? null,
+        ])->load(['studentProfile.user', 'studentProfile.skills', 'internship.company', 'internship.skills']);
+    }
+}
+```
+
+Create `app/Http/Controllers/Api/V1/ApplicationController.php`:
+
+```php
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Applications\StoreApplicationRequest;
+use App\Http\Resources\ApplicationResource;
+use App\Models\Application;
+use App\Models\Internship;
+use App\Services\ApplicationService;
+use Illuminate\Http\Request;
+
+class ApplicationController extends Controller
+{
+    public function store(StoreApplicationRequest $request, Internship $internship, ApplicationService $service): ApplicationResource
+    {
+        $profile = $request->user()->studentProfile()->firstOrCreate([]);
+
+        return new ApplicationResource(
+            $service->apply($profile, $internship, $request->validated())
+        );
+    }
+
+    public function studentIndex(Request $request)
+    {
+        $profile = $request->user()->studentProfile()->firstOrCreate([]);
+
+        return ApplicationResource::collection(
+            $profile->applications()
+                ->with(['internship.company', 'internship.skills'])
+                ->latest()
+                ->paginate(12)
+        );
+    }
+
+    public function companyIndex(Request $request)
+    {
+        $companyProfile = $request->user()->companyProfile;
+
+        abort_if(! $companyProfile, 422, 'Company profile is required.');
+
+        return ApplicationResource::collection(
+            Application::query()
+                ->whereHas('internship', fn ($query) => $query->where('company_profile_id', $companyProfile->id))
+                ->with(['studentProfile.user', 'studentProfile.skills', 'internship.company', 'internship.skills'])
+                ->latest()
+                ->paginate(12)
+        );
+    }
+
+    public function show(Request $request, Application $application): ApplicationResource
+    {
+        $application->load(['studentProfile.user', 'studentProfile.skills', 'internship.company', 'internship.skills']);
+
+        $user = $request->user();
+        $isStudentOwner = $user->studentProfile?->id === $application->student_profile_id;
+        $isCompanyOwner = $user->companyProfile?->id === $application->internship->company_profile_id;
+
+        abort_unless($isStudentOwner || $isCompanyOwner, 403);
+
+        return new ApplicationResource($application);
+    }
+}
+```
+
 ### Backend Walkthrough
 
 #### Step 1 - Create the applications table
@@ -2869,6 +5233,218 @@ Add an Apply button that opens `ApplyModal` for logged-in students.
 - [ ] `GET /api/v1/student/applications` returns only own.
 - [ ] `GET /api/v1/company/applications` returns only to company's internships.
 
+### Exact Frontend Files To Create Or Update In This Slice
+
+Create `resources/js/api/applicationApi.js`:
+
+```js
+import api from './axios';
+
+export function apply(internshipId, payload = {}) {
+    return api.post(`/internships/${internshipId}/applications`, payload);
+}
+
+export function fetchMine(params = {}) {
+    return api.get('/student/applications', { params });
+}
+
+export function fetchForCompany(params = {}) {
+    return api.get('/company/applications', { params });
+}
+
+export function fetchOne(id) {
+    return api.get(`/applications/${id}`);
+}
+```
+
+Create `resources/js/components/applications/ApplyModal.jsx`:
+
+```jsx
+import { useState } from 'react';
+import * as applicationApi from '../../api/applicationApi';
+import ErrorAlert from '../common/ErrorAlert';
+
+export default function ApplyModal({ internship, open, onClose, onApplied }) {
+    const [message, setMessage] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState(null);
+
+    if (!open) {
+        return null;
+    }
+
+    async function handleSubmit(event) {
+        event.preventDefault();
+        setSubmitting(true);
+        setError(null);
+
+        try {
+            await applicationApi.apply(internship.id, { message });
+            setMessage('');
+            onApplied();
+            onClose();
+        } catch (error) {
+            setError(error.response?.data?.message ?? 'Could not submit application.');
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    return (
+        <div className="modal-backdrop">
+            <div className="modal-panel">
+                <div className="modal-header">
+                    <h2 className="section-title">Apply to {internship.title}</h2>
+                    <button className="btn btn-ghost" type="button" onClick={onClose}>Close</button>
+                </div>
+
+                <ErrorAlert message={error} />
+
+                <form className="form-stack" onSubmit={handleSubmit}>
+                    <label className="form-group">
+                        <span>Message</span>
+                        <textarea
+                            className="form-textarea"
+                            value={message}
+                            onChange={(event) => setMessage(event.target.value)}
+                            placeholder="Briefly explain why you are interested."
+                        />
+                    </label>
+
+                    <button className="btn btn-primary" type="submit" disabled={submitting}>
+                        {submitting ? 'Submitting...' : 'Submit application'}
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+}
+```
+
+Update `resources/js/pages/internships/Detail.jsx` by importing auth and the modal:
+
+```jsx
+import { useAuth } from '../../contexts/AuthContext';
+import ApplyModal from '../../components/applications/ApplyModal';
+```
+
+Add this state inside `Detail()`:
+
+```jsx
+const { user, isAuthenticated } = useAuth();
+const [applyOpen, setApplyOpen] = useState(false);
+const [applied, setApplied] = useState(false);
+```
+
+Add this button in the sidebar:
+
+```jsx
+{isAuthenticated && user?.role === 'student' && internship.status === 'open' && (
+    <button
+        className="btn btn-primary"
+        type="button"
+        disabled={applied}
+        onClick={() => setApplyOpen(true)}
+    >
+        {applied ? 'Applied' : 'Apply now'}
+    </button>
+)}
+
+<ApplyModal
+    internship={internship}
+    open={applyOpen}
+    onClose={() => setApplyOpen(false)}
+    onApplied={() => setApplied(true)}
+/>
+```
+
+Create `resources/js/components/applications/ApplicationCard.jsx`:
+
+```jsx
+import { Link } from 'react-router-dom';
+
+export default function ApplicationCard({ application }) {
+    return (
+        <article className="internship-card">
+            <h2 className="card-title">{application.internship?.title}</h2>
+            <div className="card-meta">
+                <span>{application.status}</span>
+                <span>{application.match_score}% match</span>
+                <span>{application.created_at}</span>
+            </div>
+            <p className="card-copy">{application.message ?? 'No message provided.'}</p>
+            <Link className="btn btn-secondary" to={`/internships/${application.internship?.id}`}>
+                View internship
+            </Link>
+        </article>
+    );
+}
+```
+
+Create `resources/js/pages/student/Applications.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+import * as applicationApi from '../../api/applicationApi';
+import ApplicationCard from '../../components/applications/ApplicationCard';
+import ErrorAlert from '../../components/common/ErrorAlert';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+
+export default function Applications() {
+    const [applications, setApplications] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        async function loadApplications() {
+            try {
+                const response = await applicationApi.fetchMine();
+                setApplications(response.data.data);
+            } catch {
+                setError('Could not load applications.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadApplications();
+    }, []);
+
+    return (
+        <>
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">My Applications</h1>
+                    <p className="page-subtitle">Track the internships you have applied to.</p>
+                </div>
+            </div>
+
+            <ErrorAlert message={error} />
+
+            {loading ? <LoadingSpinner /> : (
+                <div className="card-grid">
+                    {applications.map((application) => (
+                        <ApplicationCard key={application.id} application={application} />
+                    ))}
+                </div>
+            )}
+        </>
+    );
+}
+```
+
+Update `resources/js/router/index.jsx`:
+
+```jsx
+import Applications from '../pages/student/Applications';
+```
+
+Add inside the student role group:
+
+```jsx
+{ path: '/student/applications', element: <Applications /> },
+```
+
 ### Frontend Walkthrough
 
 #### Step 1 - Create the application API client
@@ -2959,7 +5535,7 @@ Expected fields:
 - `application.match_score`
 - `application.created_at`
 - `application.internship.title`
-- `application.internship.company.name`
+- `application.internship.company.company_name`
 
 **Expected layout and CSS:**
 
@@ -3136,6 +5712,133 @@ Show `MatchScoreBadge` when `internship.match_score` exists.
 
 This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['student']}`, and `DefaultLayout`.
 
+### Exact Backend Files To Create Or Update In This Slice
+
+Run:
+
+```bash
+php artisan make:controller Api/V1/MatchController
+```
+
+Manually create:
+
+```text
+app/Services/MatchScoreService.php
+```
+
+Create `app/Services/MatchScoreService.php`:
+
+```php
+<?php
+
+namespace App\Services;
+
+use App\Models\Internship;
+use App\Models\StudentProfile;
+
+class MatchScoreService
+{
+    public function calculate(StudentProfile $studentProfile, Internship $internship): int
+    {
+        $studentSkillIds = $studentProfile->skills->pluck('id');
+        $internshipSkillIds = $internship->skills->pluck('id');
+
+        if ($internshipSkillIds->isEmpty()) {
+            $skillScore = 50;
+        } else {
+            $matched = $internshipSkillIds->intersect($studentSkillIds)->count();
+            $skillScore = (int) round(($matched / $internshipSkillIds->count()) * 90);
+        }
+
+        $gpaBonus = $studentProfile->gpa !== null && (float) $studentProfile->gpa >= 3.5 ? 10 : 0;
+
+        return min(100, max(0, $skillScore + $gpaBonus));
+    }
+}
+```
+
+Update `app/Services/ApplicationService.php` so applications store the calculated score:
+
+```php
+public function __construct(
+    private readonly MatchScoreService $matchScoreService,
+) {
+}
+
+public function apply(StudentProfile $studentProfile, Internship $internship, array $data = []): Application
+{
+    abort_if($internship->status !== InternshipStatus::Open, 422, 'This internship is not open for applications.');
+
+    $studentProfile->loadMissing('skills');
+    $internship->loadMissing('skills');
+
+    return Application::query()->create([
+        'student_profile_id' => $studentProfile->id,
+        'internship_id' => $internship->id,
+        'status' => ApplicationStatus::Pending,
+        'match_score' => $this->matchScoreService->calculate($studentProfile, $internship),
+        'message' => $data['message'] ?? null,
+    ])->load(['studentProfile.user', 'studentProfile.skills', 'internship.company', 'internship.skills']);
+}
+```
+
+Create `app/Http/Controllers/Api/V1/MatchController.php`:
+
+```php
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Enums\InternshipStatus;
+use App\Http\Controllers\Controller;
+use App\Http\Resources\InternshipResource;
+use App\Models\Internship;
+use App\Services\MatchScoreService;
+use Illuminate\Http\Request;
+
+class MatchController extends Controller
+{
+    public function score(Request $request, Internship $internship, MatchScoreService $service)
+    {
+        $profile = $request->user()->studentProfile()->firstOrCreate([]);
+
+        return response()->json([
+            'score' => $service->calculate(
+                $profile->load('skills'),
+                $internship->load('skills')
+            ),
+        ]);
+    }
+
+    public function recommendations(Request $request, MatchScoreService $service)
+    {
+        $profile = $request->user()->studentProfile()->firstOrCreate([])->load('skills');
+
+        $internships = Internship::query()
+            ->with(['company', 'skills'])
+            ->where('status', InternshipStatus::Open->value)
+            ->latest()
+            ->get()
+            ->map(function (Internship $internship) use ($profile, $service) {
+                $internship->match_score = $service->calculate($profile, $internship);
+
+                return $internship;
+            })
+            ->sortByDesc('match_score')
+            ->values()
+            ->take(12);
+
+        return InternshipResource::collection($internships);
+    }
+}
+```
+
+Update `app/Http/Resources/InternshipResource.php` so recommendation rows can include a score:
+
+```php
+'match_score' => $this->when(isset($this->match_score), $this->match_score),
+```
+
 ### Backend Walkthrough
 
 #### Step 1 - Create `MatchScoreService`
@@ -3214,6 +5917,137 @@ This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['student']
 
 - [ ] `GET /api/v1/internships/{id}/match-score` returns number 0-100.
 - [ ] `GET /api/v1/student/recommendations` returns top-matched internships.
+
+### Exact Frontend Files To Create Or Update In This Slice
+
+Create `resources/js/api/matchApi.js`:
+
+```js
+import api from './axios';
+
+export function fetchScore(internshipId) {
+    return api.get(`/internships/${internshipId}/match-score`);
+}
+
+export function fetchRecommendations(params = {}) {
+    return api.get('/student/recommendations', { params });
+}
+```
+
+Create `resources/js/components/match/MatchScoreBadge.jsx`:
+
+```jsx
+export default function MatchScoreBadge({ score }) {
+    if (score === null || score === undefined) {
+        return null;
+    }
+
+    const tier = score >= 80 ? 'high' : score >= 50 ? 'medium' : 'low';
+
+    return (
+        <span className={`match-badge match-badge-${tier}`}>
+            {score}% match
+        </span>
+    );
+}
+```
+
+Update `resources/js/components/internships/InternshipCard.jsx`:
+
+```jsx
+import MatchScoreBadge from '../match/MatchScoreBadge';
+```
+
+Add this inside the card metadata or action area:
+
+```jsx
+<MatchScoreBadge score={internship.match_score} />
+```
+
+Create `resources/js/pages/student/Recommendations.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+import * as matchApi from '../../api/matchApi';
+import ErrorAlert from '../../components/common/ErrorAlert';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+import InternshipList from '../../components/internships/InternshipList';
+
+export default function Recommendations() {
+    const [internships, setInternships] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        async function loadRecommendations() {
+            try {
+                const response = await matchApi.fetchRecommendations();
+                setInternships(response.data.data);
+            } catch {
+                setError('Could not load recommendations.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadRecommendations();
+    }, []);
+
+    return (
+        <>
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Recommendations</h1>
+                    <p className="page-subtitle">Internships ranked by your skills and profile.</p>
+                </div>
+            </div>
+
+            <ErrorAlert message={error} />
+            {loading ? <LoadingSpinner /> : <InternshipList internships={internships} />}
+        </>
+    );
+}
+```
+
+Update `resources/js/pages/internships/Detail.jsx` to show a student score on the detail page:
+
+```jsx
+import * as matchApi from '../../api/matchApi';
+import MatchScoreBadge from '../../components/match/MatchScoreBadge';
+```
+
+Add state:
+
+```jsx
+const [matchScore, setMatchScore] = useState(null);
+```
+
+After loading the internship, fetch the score only for students:
+
+```jsx
+if (isAuthenticated && user?.role === 'student') {
+    const scoreResponse = await matchApi.fetchScore(id);
+    setMatchScore(scoreResponse.data.score);
+}
+```
+
+Render:
+
+```jsx
+<MatchScoreBadge score={matchScore} />
+```
+
+Update `resources/js/router/index.jsx`:
+
+```jsx
+import Recommendations from '../pages/student/Recommendations';
+```
+
+Add inside the student role group:
+
+```jsx
+{ path: '/student/recommendations', element: <Recommendations /> },
+```
 
 ### Frontend Walkthrough
 
@@ -3441,6 +6275,84 @@ This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['company']
 - Status dropdown
 - CV download
 
+### Exact Backend Files To Create Or Update In This Slice
+
+Run:
+
+```bash
+php artisan make:request Applications/UpdateStatusRequest
+```
+
+Update `app/Http/Requests/Applications/UpdateStatusRequest.php`:
+
+```php
+<?php
+
+namespace App\Http\Requests\Applications;
+
+use App\Enums\ApplicationStatus;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class UpdateStatusRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'status' => ['required', Rule::enum(ApplicationStatus::class)],
+        ];
+    }
+}
+```
+
+Add this method to `app/Http/Controllers/Api/V1/ApplicationController.php`:
+
+```php
+use App\Http\Requests\Applications\UpdateStatusRequest;
+
+public function updateStatus(UpdateStatusRequest $request, Application $application): ApplicationResource
+{
+    $application->load(['internship', 'studentProfile.user', 'studentProfile.skills']);
+
+    $companyProfile = $request->user()->companyProfile;
+
+    abort_if(! $companyProfile, 422, 'Company profile is required.');
+    abort_unless($application->internship->company_profile_id === $companyProfile->id, 403);
+
+    $application->update([
+        'status' => $request->validated('status'),
+        'reviewed_at' => now(),
+    ]);
+
+    return new ApplicationResource(
+        $application->fresh(['studentProfile.user', 'studentProfile.skills', 'internship.company', 'internship.skills'])
+    );
+}
+```
+
+Add the route inside the company-only group in `routes/api.php`:
+
+```php
+Route::patch('/company/applications/{application}/status', [ApplicationController::class, 'updateStatus']);
+```
+
+Update `resources/js/api/applicationApi.js` with the exact functions the applicants page will use:
+
+```js
+export function fetchForCompany(params = {}) {
+    return api.get('/company/applications', { params });
+}
+
+export function updateStatus(applicationId, status) {
+    return api.patch(`/company/applications/${applicationId}/status`, { status });
+}
+```
+
 ### Backend Walkthrough
 
 #### Step 1 - Create status update request
@@ -3495,6 +6407,152 @@ This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['company']
 
 - [ ] Company sets status to accepted/rejected/reviewed.
 - [ ] Other company cannot change it -> 403.
+
+### Exact Frontend Files To Create Or Update In This Slice
+
+Update `resources/js/api/applicationApi.js`:
+
+```js
+export function updateStatus(applicationId, status) {
+    return api.patch(`/company/applications/${applicationId}/status`, { status });
+}
+```
+
+Create `resources/js/components/applications/ApplicantRow.jsx`:
+
+```jsx
+export default function ApplicantRow({ application, updating, onStatusChange }) {
+    const cvUrl = application.student?.cv_url;
+
+    return (
+        <tr>
+            <td>{application.student?.name ?? 'Unknown student'}</td>
+            <td>{application.internship?.title}</td>
+            <td>{application.match_score}%</td>
+            <td>
+                <select
+                    className="form-select"
+                    value={application.status}
+                    disabled={updating}
+                    onChange={(event) => onStatusChange(application.id, event.target.value)}
+                >
+                    <option value="pending">Pending</option>
+                    <option value="reviewed">Reviewed</option>
+                    <option value="accepted">Accepted</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+            </td>
+            <td>
+                {cvUrl ? (
+                    <a className="btn btn-secondary" href={cvUrl} target="_blank" rel="noreferrer">
+                        View CV
+                    </a>
+                ) : (
+                    <span className="muted-text">No CV</span>
+                )}
+            </td>
+        </tr>
+    );
+}
+```
+
+Create `resources/js/pages/company/Applicants.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+import * as applicationApi from '../../api/applicationApi';
+import ApplicantRow from '../../components/applications/ApplicantRow';
+import ErrorAlert from '../../components/common/ErrorAlert';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+
+export default function Applicants() {
+    const [applications, setApplications] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [updatingId, setUpdatingId] = useState(null);
+
+    useEffect(() => {
+        async function loadApplications() {
+            try {
+                const response = await applicationApi.fetchForCompany();
+                setApplications(response.data.data);
+            } catch {
+                setError('Could not load applicants.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadApplications();
+    }, []);
+
+    async function handleStatusChange(applicationId, status) {
+        setUpdatingId(applicationId);
+
+        try {
+            const response = await applicationApi.updateStatus(applicationId, status);
+            setApplications((items) => items.map((item) => (
+                item.id === applicationId ? response.data.data : item
+            )));
+        } catch {
+            setError('Could not update application status.');
+        } finally {
+            setUpdatingId(null);
+        }
+    }
+
+    return (
+        <>
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Applicants</h1>
+                    <p className="page-subtitle">Review students who applied to your internships.</p>
+                </div>
+            </div>
+
+            <ErrorAlert message={error} />
+
+            {loading ? <LoadingSpinner /> : (
+                <div className="table-shell">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Internship</th>
+                                <th>Match</th>
+                                <th>Status</th>
+                                <th>CV</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {applications.map((application) => (
+                                <ApplicantRow
+                                    key={application.id}
+                                    application={application}
+                                    updating={updatingId === application.id}
+                                    onStatusChange={handleStatusChange}
+                                />
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </>
+    );
+}
+```
+
+Update `resources/js/router/index.jsx`:
+
+```jsx
+import Applicants from '../pages/company/Applicants';
+```
+
+Add inside the company role group:
+
+```jsx
+{ path: '/company/applicants', element: <Applicants /> },
+```
 
 ### Frontend Walkthrough
 
@@ -3754,6 +6812,171 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
 
 This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['admin']}`, and `DefaultLayout`.
 
+### Exact Backend Files To Create Or Update In This Slice
+
+Run:
+
+```bash
+php artisan make:controller Api/V1/AdminDashboardController
+php artisan make:controller Api/V1/AdminUserController
+```
+
+Manually create:
+
+```text
+app/Services/AdminDashboardService.php
+```
+
+Update `database/seeders/DatabaseSeeder.php` so there is always one admin in local/dev seed data:
+
+```php
+use App\Enums\UserRole;
+use App\Models\User;
+
+User::query()->updateOrCreate(
+    ['email' => 'admin@example.com'],
+    [
+        'name' => 'Admin',
+        'password' => 'password',
+        'role' => UserRole::Admin,
+    ]
+);
+```
+
+Create `app/Services/AdminDashboardService.php`:
+
+```php
+<?php
+
+namespace App\Services;
+
+use App\Enums\InternshipStatus;
+use App\Enums\UserRole;
+use App\Models\Application;
+use App\Models\Internship;
+use App\Models\User;
+
+class AdminDashboardService
+{
+    public function stats(): array
+    {
+        return [
+            'total_users' => User::query()->count(),
+            'total_students' => User::query()->where('role', UserRole::Student->value)->count(),
+            'total_companies' => User::query()->where('role', UserRole::Company->value)->count(),
+            'active_internships' => Internship::query()->where('status', InternshipStatus::Open->value)->count(),
+            'total_applications' => Application::query()->count(),
+        ];
+    }
+
+    public function recentInternships()
+    {
+        return Internship::query()
+            ->with(['company', 'skills'])
+            ->latest()
+            ->take(10)
+            ->get();
+    }
+}
+```
+
+Create `app/Http/Controllers/Api/V1/AdminDashboardController.php`:
+
+```php
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Http\Resources\InternshipResource;
+use App\Services\AdminDashboardService;
+
+class AdminDashboardController extends Controller
+{
+    public function index(AdminDashboardService $service)
+    {
+        return response()->json([
+            'stats' => $service->stats(),
+            'internships' => InternshipResource::collection($service->recentInternships()),
+        ]);
+    }
+}
+```
+
+Create `app/Http/Controllers/Api/V1/AdminUserController.php`:
+
+```php
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
+use App\Models\User;
+use Illuminate\Http\Request;
+
+class AdminUserController extends Controller
+{
+    public function index(Request $request)
+    {
+        $query = User::query()->latest();
+
+        if ($role = $request->query('role')) {
+            $query->where('role', $role);
+        }
+
+        if ($search = $request->query('search')) {
+            $query->where(function ($builder) use ($search): void {
+                $builder->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        return UserResource::collection($query->paginate(15)->withQueryString());
+    }
+
+    public function destroy(Request $request, User $user)
+    {
+        abort_if($request->user()->is($user), 422, 'You cannot delete your own admin account.');
+
+        $user->delete();
+
+        return response()->noContent();
+    }
+}
+```
+
+Add imports and routes to `routes/api.php`:
+
+```php
+use App\Http\Controllers\Api\V1\AdminDashboardController;
+use App\Http\Controllers\Api\V1\AdminUserController;
+
+Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::get('/admin/dashboard', [AdminDashboardController::class, 'index']);
+    Route::get('/admin/users', [AdminUserController::class, 'index']);
+    Route::delete('/admin/users/{user}', [AdminUserController::class, 'destroy']);
+});
+```
+
+Update `resources/js/api/adminApi.js`:
+
+```js
+import api from './axios';
+
+export function fetchDashboard() {
+    return api.get('/admin/dashboard');
+}
+
+export function fetchUsers(params = {}) {
+    return api.get('/admin/users', { params });
+}
+
+export function deleteUser(id) {
+    return api.delete(`/admin/users/${id}`);
+}
+```
+
 ### Backend Walkthrough
 
 #### Step 1 - Seed an admin user
@@ -3832,6 +7055,210 @@ This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['admin']}`
 
 - [ ] `GET /api/v1/admin/dashboard` returns aggregated object.
 - [ ] Non-admin -> 403.
+
+### Exact Frontend Files To Create Or Update In This Slice
+
+Create `resources/js/components/admin/StatsCards.jsx`:
+
+```jsx
+export default function StatsCards({ stats }) {
+    if (!stats) {
+        return null;
+    }
+
+    const cards = [
+        { label: 'Users', value: stats.total_users },
+        { label: 'Students', value: stats.total_students },
+        { label: 'Companies', value: stats.total_companies },
+        { label: 'Active Internships', value: stats.active_internships },
+        { label: 'Applications', value: stats.total_applications },
+    ];
+
+    return (
+        <div className="grid-stats">
+            {cards.map((card) => (
+                <article className="stat-card" key={card.label}>
+                    <p className="stat-label">{card.label}</p>
+                    <p className="stat-value">{card.value}</p>
+                </article>
+            ))}
+        </div>
+    );
+}
+```
+
+Create `resources/js/components/admin/UsersTable.jsx`:
+
+```jsx
+export default function UsersTable({ users, onDelete, deletingId }) {
+    return (
+        <div className="table-shell">
+            <table className="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Joined</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {users.map((user) => (
+                        <tr key={user.id}>
+                            <td>{user.name}</td>
+                            <td>{user.email}</td>
+                            <td>{user.role}</td>
+                            <td>{user.created_at}</td>
+                            <td>
+                                <button
+                                    className="btn btn-danger"
+                                    type="button"
+                                    disabled={deletingId === user.id}
+                                    onClick={() => onDelete(user.id)}
+                                >
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+```
+
+Create `resources/js/components/admin/InternshipsTable.jsx`:
+
+```jsx
+export default function InternshipsTable({ internships }) {
+    return (
+        <div className="table-shell">
+            <table className="data-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Company</th>
+                        <th>Status</th>
+                        <th>Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {internships.map((internship) => (
+                        <tr key={internship.id}>
+                            <td>{internship.title}</td>
+                            <td>{internship.company?.company_name}</td>
+                            <td>{internship.status}</td>
+                            <td>{internship.type}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+```
+
+Create `resources/js/pages/admin/Dashboard.jsx`:
+
+```jsx
+import { useEffect, useState } from 'react';
+import * as adminApi from '../../api/adminApi';
+import InternshipsTable from '../../components/admin/InternshipsTable';
+import StatsCards from '../../components/admin/StatsCards';
+import UsersTable from '../../components/admin/UsersTable';
+import ErrorAlert from '../../components/common/ErrorAlert';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+
+export default function Dashboard() {
+    const [stats, setStats] = useState(null);
+    const [internships, setInternships] = useState([]);
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [deletingId, setDeletingId] = useState(null);
+
+    async function loadDashboard() {
+        setLoading(true);
+
+        try {
+            const [dashboardResponse, usersResponse] = await Promise.all([
+                adminApi.fetchDashboard(),
+                adminApi.fetchUsers(),
+            ]);
+
+            setStats(dashboardResponse.data.stats);
+            setInternships(dashboardResponse.data.internships.data ?? dashboardResponse.data.internships);
+            setUsers(usersResponse.data.data);
+        } catch {
+            setError('Could not load admin dashboard.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        loadDashboard();
+    }, []);
+
+    async function handleDeleteUser(id) {
+        if (!window.confirm('Delete this user?')) return;
+
+        setDeletingId(id);
+
+        try {
+            await adminApi.deleteUser(id);
+            setUsers((items) => items.filter((user) => user.id !== id));
+        } finally {
+            setDeletingId(null);
+        }
+    }
+
+    if (loading) return <LoadingSpinner label="Loading admin dashboard..." />;
+
+    return (
+        <>
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Admin Dashboard</h1>
+                    <p className="page-subtitle">Monitor platform users, internships, and applications.</p>
+                </div>
+            </div>
+
+            <ErrorAlert message={error} />
+            <StatsCards stats={stats} />
+
+            <section className="surface">
+                <h2 className="section-title">Recent Internships</h2>
+                <InternshipsTable internships={internships} />
+            </section>
+
+            <section className="surface">
+                <h2 className="section-title">Users</h2>
+                <UsersTable users={users} onDelete={handleDeleteUser} deletingId={deletingId} />
+            </section>
+        </>
+    );
+}
+```
+
+Update `resources/js/router/index.jsx`:
+
+```jsx
+import AdminDashboard from '../pages/admin/Dashboard';
+```
+
+Add inside an admin role group:
+
+```jsx
+{
+    element: <RoleRoute allowedRoles={['admin']} />,
+    children: [
+        { path: '/admin/dashboard', element: <AdminDashboard /> },
+    ],
+},
+```
 
 ### Frontend Walkthrough
 
@@ -3968,7 +7395,7 @@ Expected internship fields:
 
 - `internship.id`
 - `internship.title`
-- `internship.company.name`
+- `internship.company.company_name`
 - `internship.status`
 - `internship.created_at`
 
@@ -4102,6 +7529,153 @@ This slice does not add new product features. It makes the existing slices relia
 - Local admin credentials documented for development
 - Known limitations listed honestly
 
+### Exact Test And Documentation Files To Create Or Update In This Slice
+
+Run:
+
+```bash
+php artisan make:test AuthFlowTest
+php artisan make:test InternshipBrowseTest
+php artisan make:test CompanyInternshipTest
+php artisan make:test StudentApplicationTest
+php artisan make:test MatchScoreTest
+php artisan make:test AdminDashboardTest
+```
+
+Use these test method names so the coverage is easy to scan:
+
+```php
+public function test_user_can_register_login_fetch_me_and_logout(): void {}
+public function test_public_user_can_browse_open_internships(): void {}
+public function test_company_can_create_update_archive_and_delete_own_internship(): void {}
+public function test_student_can_apply_once_to_open_internship(): void {}
+public function test_match_score_prefers_shared_skills(): void {}
+public function test_admin_can_view_dashboard_and_delete_other_users(): void {}
+```
+
+Example factory-backed feature test shape for `tests/Feature/StudentApplicationTest.php`:
+
+```php
+<?php
+
+namespace Tests\Feature;
+
+use App\Enums\UserRole;
+use App\Models\CompanyProfile;
+use App\Models\Internship;
+use App\Models\Skill;
+use App\Models\StudentProfile;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class StudentApplicationTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_student_can_apply_once_to_open_internship(): void
+    {
+        $student = User::factory()->create(['role' => UserRole::Student]);
+        $studentProfile = StudentProfile::factory()->for($student)->create();
+
+        $company = User::factory()->create(['role' => UserRole::Company]);
+        $companyProfile = CompanyProfile::factory()->for($company)->create();
+        $internship = Internship::factory()->for($companyProfile, 'company')->create();
+
+        $skill = Skill::factory()->create(['name' => 'Laravel']);
+        $studentProfile->skills()->attach($skill);
+        $internship->skills()->attach($skill);
+
+        $this->actingAs($student, 'sanctum')
+            ->postJson("/api/v1/internships/{$internship->id}/applications", [
+                'message' => 'I want to build Laravel APIs.',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'pending');
+
+        $this->actingAs($student, 'sanctum')
+            ->postJson("/api/v1/internships/{$internship->id}/applications", [])
+            ->assertStatus(422);
+    }
+}
+```
+
+If factories are missing, create or complete these files:
+
+```text
+database/factories/CompanyProfileFactory.php
+database/factories/SkillFactory.php
+database/factories/InternshipFactory.php
+database/factories/StudentProfileFactory.php
+database/factories/ApplicationFactory.php
+```
+
+Minimum `InternshipFactory` definition:
+
+```php
+public function definition(): array
+{
+    return [
+        'title' => fake()->jobTitle(),
+        'description' => fake()->paragraph(),
+        'requirements' => fake()->paragraph(),
+        'location' => fake()->city(),
+        'type' => fake()->randomElement(['remote', 'onsite', 'hybrid']),
+        'status' => 'open',
+        'starts_at' => now()->addMonth()->toDateString(),
+        'ends_at' => now()->addMonths(3)->toDateString(),
+    ];
+}
+```
+
+Update `README.md` with these exact sections:
+
+````md
+## Local Setup
+
+```bash
+composer install
+npm install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate --seed
+php artisan storage:link
+composer run dev
+```
+
+## Development Accounts
+
+- Admin: `admin@example.com` / `password`
+
+## API Testing
+
+Import `docs/postman/smart-internship-platform.postman_collection.json` into Postman.
+Use the register/login endpoint first, then set the returned Bearer token on protected requests.
+
+## Known Limitations
+
+- Match scoring is rule-based, not machine learning.
+- CV upload accepts PDF only.
+- Email notifications are not included.
+````
+
+Update `.env.example` and confirm these keys exist:
+
+```env
+APP_NAME="Smart Internship Platform"
+APP_URL=http://localhost:8000
+FILESYSTEM_DISK=public
+SANCTUM_STATEFUL_DOMAINS=localhost,localhost:5173,127.0.0.1,127.0.0.1:5173
+```
+
+Final verification commands:
+
+```bash
+php artisan migrate:fresh --seed
+php artisan test
+npm run build
+```
+
 ### Backend Walkthrough
 
 #### Step 1 - Add feature tests
@@ -4175,6 +7749,217 @@ This slice does not add new product features. It makes the existing slices relia
 **Do this:** Review `routes/api.php`, `app/Policies/`, `app/Http/Requests/`, and `app/Http/Resources/`.
 
 **Check:** Every write route has auth, role/policy checks, validation, and safe output.
+
+### Exact Frontend Polish To Apply In This Slice
+
+Update `resources/css/app.css` with shared layout and state classes if they do not already exist:
+
+```css
+.page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.page-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+.page-subtitle {
+    margin: 0.25rem 0 0;
+    color: #64748b;
+}
+
+.surface,
+.surface-muted,
+.internship-card,
+.stat-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 1rem;
+}
+
+.surface-muted {
+    background: #f8fafc;
+}
+
+.card-grid,
+.grid-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.detail-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 1rem;
+}
+
+.detail-main,
+.detail-sidebar,
+.form-stack {
+    display: grid;
+    gap: 1rem;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.form-wide {
+    grid-column: 1 / -1;
+}
+
+.form-group {
+    display: grid;
+    gap: 0.375rem;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 0.625rem 0.75rem;
+}
+
+.form-textarea {
+    min-height: 120px;
+}
+
+.form-error,
+.alert-error {
+    color: #b91c1c;
+}
+
+.alert {
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+}
+
+.alert-error {
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.btn-secondary {
+    border-color: #cbd5e1;
+    background: #ffffff;
+    color: #0f172a;
+}
+
+.btn-danger {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.btn-ghost {
+    background: transparent;
+    color: #334155;
+}
+
+.table-shell {
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.75rem;
+    text-align: left;
+}
+
+.row-actions,
+.skill-list,
+.form-actions,
+.pagination {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.skill-pill,
+.match-badge {
+    border-radius: 999px;
+    padding: 0.25rem 0.625rem;
+    background: #eef2ff;
+    color: #3730a3;
+    font-size: 0.875rem;
+}
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(15, 23, 42, 0.55);
+    padding: 1rem;
+}
+
+.modal-panel {
+    width: min(560px, 100%);
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 1rem;
+}
+
+@media (max-width: 768px) {
+    .page-header,
+    .detail-layout,
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .page-header {
+        display: grid;
+    }
+}
+```
+
+Run these frontend checks after applying polish:
+
+```bash
+npm run build
+npm run lint
+```
+
+Manual browser checklist:
+
+- Visit `/internships`, `/internships/:id`, `/student/profile`, `/student/applications`, `/student/recommendations`, `/company/internships`, `/company/applicants`, and `/admin/dashboard`.
+- Shrink the browser to mobile width and confirm tables scroll horizontally instead of overflowing the whole page.
+- Submit each form with invalid data and confirm Laravel `422` errors appear near the matching fields.
+- Log in as each role and confirm React Router blocks pages for the wrong role.
+- Refresh the browser on a nested route like `/company/internships` and confirm Laravel fallback still loads React.
 
 ### Frontend Walkthrough
 
@@ -4871,9 +8656,10 @@ public function uploadCv(UploadCvRequest $request, StudentProfileService $servic
 `StudentSkillController` should expose:
 
 ```php
-public function index() {}
 public function sync(Request $request) {}
 ```
+
+The public skill list is handled by `SkillController@index` from Slice 2.
 
 `StudentProfileService` should expose:
 
@@ -4904,10 +8690,6 @@ export function uploadCv(file, onUploadProgress) {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress,
     });
-}
-
-export function fetchSkills() {
-    return api.get('/skills');
 }
 
 export function syncSkills(skillIds) {
