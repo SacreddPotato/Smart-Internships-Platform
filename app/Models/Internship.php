@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
     'company_profile_id',
@@ -26,7 +27,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Internship extends Model
 {
     /** @use HasFactory<InternshipFactory> */
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     public function casts(): array {
         return [

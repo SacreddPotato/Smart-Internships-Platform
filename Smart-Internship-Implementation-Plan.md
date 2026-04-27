@@ -3062,7 +3062,7 @@ export function fetchArchived(params = {}) {
 Create `resources/js/components/internships/InternshipForm.jsx`:
 
 ```jsx
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 const emptyValues = {
     title: '',
@@ -3075,18 +3075,20 @@ const emptyValues = {
     skills: [],
 };
 
-export default function InternshipForm({ initialValues, skills = [], onSubmit, submitting = false, errors = {} }) {
-    const [form, setForm] = useState(emptyValues);
+function normalizeValues(values) {
+    if (!values) {
+        return emptyValues;
+    }
 
-    useEffect(() => {
-        if (initialValues) {
-            setForm({
-                ...emptyValues,
-                ...initialValues,
-                skills: initialValues.skills?.map((skill) => skill.id) ?? [],
-            });
-        }
-    }, [initialValues]);
+    return {
+        ...emptyValues,
+        ...values,
+        skills: values.skills?.map((skill) => skill.id) ?? [],
+    };
+}
+
+export default function InternshipForm({ initialValues, skills = [], onSubmit, submitting = false, errors = {} }) {
+    const [form, setForm] = useState(() => normalizeValues(initialValues));
 
     function updateField(event) {
         setForm({
@@ -3185,6 +3187,13 @@ export default function InternshipForm({ initialValues, skills = [], onSubmit, s
     );
 }
 ```
+
+Why the form initializes this way:
+
+- Do not call `setForm(...)` inside `useEffect` just to copy `initialValues` into state.
+- React may warn that synchronous state updates inside effects can cause cascading renders.
+- The edit page will wait until the internship is loaded before rendering this form.
+- The `key={internship.id}` in the edit page makes React create a fresh form if the edited internship changes.
 
 Create `resources/js/pages/company/InternshipCreate.jsx`:
 
@@ -3301,6 +3310,7 @@ export default function InternshipEdit() {
     return (
         <section className="surface">
             <InternshipForm
+                key={internship.id}
                 initialValues={internship}
                 skills={skills}
                 onSubmit={handleSubmit}
@@ -3311,6 +3321,15 @@ export default function InternshipEdit() {
     );
 }
 ```
+
+Important edit-form rule:
+
+```jsx
+if (loading) return <LoadingSpinner label="Loading internship..." />;
+if (error) return <ErrorAlert message={error} />;
+```
+
+These guards must stay before rendering `InternshipForm`. That way, `initialValues` is available on the first form render, and the form does not need an effect to copy loaded props into local state.
 
 Create `resources/js/pages/company/Internships.jsx`:
 
@@ -3518,15 +3537,10 @@ export default function InternshipForm({
 **State to declare inside the form:**
 
 ```jsx
-const [form, setForm] = useState(initialValues ?? {
-    title: '',
-    description: '',
-    location: '',
-    type: 'remote',
-    requirements: '',
-    skills: [],
-});
+const [form, setForm] = useState(() => normalizeValues(initialValues));
 ```
+
+Do not mirror `initialValues` into state with `useEffect`; initialize from `initialValues` once, and make the edit page render the form with `key={internship.id}` after loading.
 
 **Fields to render:**
 
@@ -8614,14 +8628,31 @@ export function fetchArchived(params = {}) {
 #### `InternshipForm.jsx` props and state
 
 ```jsx
+const emptyValues = {
+    title: '',
+    description: '',
+    requirements: '',
+    location: '',
+    type: 'remote',
+    starts_at: '',
+    ends_at: '',
+    skills: [],
+};
+
+function normalizeValues(values) {
+    if (!values) {
+        return emptyValues;
+    }
+
+    return {
+        ...emptyValues,
+        ...values,
+        skills: values.skills?.map((skill) => skill.id) ?? [],
+    };
+}
+
 export default function InternshipForm({ initialValues, onSubmit, submitting, errors = {} }) {
-    const [values, setValues] = useState(initialValues ?? {
-        title: '',
-        description: '',
-        location: '',
-        type: 'remote',
-        skills: [],
-    });
+    const [values, setValues] = useState(() => normalizeValues(initialValues));
 
     function handleChange(event) {
         setValues({

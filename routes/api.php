@@ -27,4 +27,13 @@ Route::prefix('v1')->group(function() {
         Route::get('internships', [InternshipController::class, 'index']);
         Route::get('internships/{internship}', [InternshipController::class, 'show']);
     });
+
+    Route::middleware(['auth:sanctum', 'role:company'])->group(function() {
+        Route::get('/company/internships', [InternshipController::class, 'companyIndex']);
+        Route::get('/company/internships/archived', [InternshipController::class, 'archived']);
+        Route::post('/company/internships', [InternshipController::class, 'store']);
+        Route::put('/internships/{internship}', [InternshipController::class, 'update']);
+        Route::patch('/internships/{internship}/archive', [InternshipController::class, 'archive']);
+        Route::delete('/internships/{internship}', [InternshipController::class, 'destroy']);
+    });
 });
