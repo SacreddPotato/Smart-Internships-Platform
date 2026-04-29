@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function IndexRedirect() {
-    const { isAuthenticated, loading } = useAuth();
+    const { role, isAuthenticated, loading } = useAuth();
 
     if (loading) {
         return (
@@ -13,7 +13,27 @@ export default function IndexRedirect() {
         );
     }
 
-    return isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />;
+    if (! isAuthenticated) {
+        return <Navigate to="/login" replace />;
+    }
+
+    if (! role) {
+        return <Navigate to="/login" replace />;
+    }
+
+    switch (role) {
+        case 'company':
+            return <Navigate to='/company/dashboard' replace />;
+
+        case 'student':
+            return <Navigate to='/student/dashboard' replace />;
+
+        case 'admin':
+            return <Navigate to='/admin/dashboard' replace />;
+
+        default:
+            return <Navigate to="/login" replace />;
+    }
 }
 
 

@@ -31,7 +31,7 @@ class StoreInternshipRequest extends FormRequest
             'location' => ['nullable', 'string', 'max:255'],
             'type' => ['required', Rule::enum(InternshipType::class)],
             'starts_at' => ['nullable', 'date'],
-            'ends_at' => ['nullable', 'date', 'after_or_eqal:starts_at'],
+            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
             'skills' => ['array'],
             'skills.*' => ['integer', 'exists:skills,id']
         ];

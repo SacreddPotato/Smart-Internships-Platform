@@ -31,7 +31,7 @@ class UpdateInternshipsRequest extends FormRequest
             'location' => ['sometimes', 'required', 'string', 'max:255'],
             'type' => ['sometimes', 'required', Rule::enum(InternshipType::class)],
             'starts_at' => ['sometimes', 'nullable', 'date'],
-            'ends_at' => ['sometimes', 'nullable', 'date', 'after_or_eqal:starts_at'],
+            'ends_at' => ['sometimes', 'nullable', 'date', 'after_or_equal:starts_at'],
             'skills' => ['sometimes', 'array'],
             'skills.*' => ['integer', 'exists:skills,id']
         ];

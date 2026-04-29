@@ -13,5 +13,5 @@ export default function GuestOnlyRoute() {
         );
     }
 
-    return !isAuthenticated ? <Outlet /> : <Navigate to="/dashboard" />;
+    return !isAuthenticated ? <Outlet /> : <Navigate to="/" replace/>;
 }

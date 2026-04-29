@@ -6,7 +6,7 @@ function navClass({ isActive }) {
 }
 
 export default function DefaultLayout() {
-    const { user, logout } = useAuth();
+    const { user, role, logout } = useAuth();
 
     return (
         <main className="app-shell">
@@ -16,10 +16,31 @@ export default function DefaultLayout() {
                 </div>
 
                 <nav className="sidebar-nav">
-                    <NavLink to="/dashboard" className={navClass}>Dashboard</NavLink>
-                    <NavLink to="/internships" className={navClass}>Internships</NavLink>
-                    <NavLink to="/student/profile" className={navClass}>Profile</NavLink>
-                    <NavLink to="/student/applications" className={navClass}>Applications</NavLink>
+                    {role === 'company' && (
+                        <>
+                            <NavLink to="/company/dashboard" className={navClass}>Dashboard</NavLink>
+                            <NavLink to="/company/internships" end className={navClass}>My Internships</NavLink>
+                            <NavLink to="/company/internships/archived" className={navClass}>Archived Internships</NavLink>
+                            <NavLink to='/company/profile' className={navClass}>Profile</NavLink>
+                            <NavLink to='/company/applications' className={navClass}>Applications</NavLink>
+                        </>
+                    )}
+                    {role === 'student' && (
+                        <>
+                            <NavLink to="/student/dashboard" className={navClass}>Dashboard</NavLink>
+                            <NavLink to="/internships" className={navClass}>Browse Internships</NavLink>
+                            <NavLink to='/profile' className={navClass}>Profile</NavLink>
+                            <NavLink to='/applications' className={navClass}>My Applications</NavLink>
+                        </>
+                    )}
+                    {role === 'admin' && (
+                        <>
+                            <NavLink to="/admin/dashboard" className={navClass}>Dashboard</NavLink>
+                            <NavLink to="/admin/companies" className={navClass}>Manage Companies</NavLink>
+                            <NavLink to="/admin/internships" className={navClass}>Manage Internships</NavLink>
+                            <NavLink to="/admin/users" className={navClass}>Manage Users</NavLink>
+                        </>
+                    )}
                 </nav>
             </aside>
 

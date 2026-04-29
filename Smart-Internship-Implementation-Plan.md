@@ -19,7 +19,7 @@ This project is a Laravel API plus a React single-page app.
 | Route type | Put it here | Example |
 |---|---|---|
 | Laravel JSON API endpoints | `routes/api.php` | `GET /api/v1/internships` |
-| React page routes | `resources/js/router/index.jsx` | `/internships`, `/login`, `/dashboard` |
+| React page routes | `resources/js/router/index.jsx` | `/internships`, `/login`, `/student/dashboard`, `/company/dashboard` |
 | Laravel web fallback only | `routes/web.php` | returns the React HTML shell |
 
 Do not add normal React page routes to `routes/web.php`. The current `Route::fallback(...)` in `routes/web.php` is there so browser refreshes on React URLs still load the React app.
@@ -144,7 +144,7 @@ php artisan migrate
 
 **Why we do this:** Strings are easy to mistype. If you write `compnay` in one file and `company` in another, PHP will not warn you. An enum gives the role values one official home.
 
-**What this does:** `UserRole` becomes a PHP type that represents allowed roles. Instead of guessing role strings across the app, you can use `UserRole::Student`, `UserRole::Company`, and `UserRole::Admin`. It also helps Laravel validate and cast role values cleanly.
+**What this does:** `UserRole` becomes a PHP type that represents allowed roles. Instead of guessing role strings across the app, you can use `UserRole::STUDENT`, `UserRole::COMPANY`, and `UserRole::ADMIN`. It also helps Laravel validate and cast role values cleanly.
 
 1. Create the folder if it does not exist:
 
@@ -188,7 +188,7 @@ enum UserRole: string
 
 - `HasApiTokens` adds Sanctum token methods to the user, especially `createToken(...)`.
 - `role` in fillable allows `User::create([... 'role' => ...])` during registration.
-- The `role` cast tells Laravel to convert the database string `student` into `UserRole::Student` when you access `$user->role`.
+- The `role` cast tells Laravel to convert the database string `student` into `UserRole::STUDENT` when you access `$user->role`.
 - The `password` cast as `hashed` tells Laravel to automatically hash new passwords when saving them.
 
 1. Open:
@@ -422,7 +422,7 @@ app/Http/Controllers/Api/V1/AuthController.php
 Company profile creation rule:
 
 ```php
-if ($user->role === UserRole::Company) {
+if ($user->role === UserRole::COMPANY) {
     $user->companyProfile()->create([
         'company_name' => $user->name,
     ]);
@@ -432,7 +432,7 @@ if ($user->role === UserRole::Company) {
 If your enum cast returns an enum object, compare with:
 
 ```php
-if ($user->role === UserRole::Company) {
+if ($user->role === UserRole::COMPANY) {
     // create profile
 }
 ```
@@ -538,7 +538,7 @@ Example:
 
 ```php
 Route::middleware(['auth:sanctum', 'role:company'])->group(function () {
-    Route::post('/internships', [InternshipController::class, 'store']);
+    Route::post('/company/internships', [InternshipController::class, 'store']);
 });
 ```
 
@@ -565,12 +565,17 @@ app/Http/Middleware/RoleMiddleware.php
 3. Make the middleware accept roles:
 
 ```php
+use BackedEnum;
+
 public function handle(Request $request, Closure $next, string ...$roles): Response
 {
     $user = $request->user();
+    $role = $user?->role instanceof BackedEnum ? $user->role->value : $user?->role;
 
-    if (! $user || ! in_array($user->role->value, $roles, true)) {
-        abort(403);
+    if (! $user || ! in_array($role, $roles, true)) {
+        return response()->json([
+            'message' => 'Access denied',
+        ], 403);
     }
 
     return $next($request);
@@ -606,7 +611,7 @@ Route::middleware(['auth:sanctum', 'role:company'])->group(function () {
 
 ### Postman Verification
 
-- [ ] `POST /api/v1/register` creates user and returns token.
+- [ ] `POST /api/v1/register` creates user and returns the user.
 - [ ] `POST /api/v1/login` returns token.
 - [ ] `GET /api/v1/me` with Bearer token returns user.
 - [ ] `GET /api/v1/me` without token returns 401.
@@ -631,7 +636,7 @@ Route::middleware(['auth:sanctum', 'role:company'])->group(function () {
 
 **Why we do this:** Many components need to know whether the user is logged in. Passing `user` through props everywhere gets messy fast. Context gives shared auth state to the app.
 
-**What this does:** `AuthContext` stores `user`, `token`, `isAuthenticated`, loading state, and functions like `login`, `register`, and `logout`.
+**What this does:** `AuthContext` stores `user`, `role`, `token`, `isAuthenticated`, loading state, and functions like `login`, `register`, and `logout`.
 
 **Do this:** Create `resources/js/contexts/AuthContext.jsx`; on successful login/register, save the token to `localStorage`; on logout, remove it; on first load, call `authApi.me()` if a token already exists.
 
@@ -645,40 +650,44 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
-    const [token, setToken] = useState(() => localStorage.getItem('token'));
-    const [loading, setLoading] = useState(true);
+    const [token, setToken] = useState(() => localStorage.getItem('token') || null);
+    const [loading, setLoading] = useState(() => !!localStorage.getItem('token'));
     const [error, setError] = useState(null);
 
     useEffect(() => {
         if (!token) {
-            setLoading(false);
             return;
         }
 
+        let cancelled = false;
+
         authApi.me()
             .then((response) => {
-                setUser(response.data.user);
+                if (!cancelled) {
+                    setUser(response.data.user);
+                }
             })
             .catch(() => {
-                localStorage.removeItem('token');
-                setToken(null);
-                setUser(null);
+                if (!cancelled) {
+                    localStorage.removeItem('token');
+                    setToken(null);
+                    setUser(null);
+                }
             })
             .finally(() => {
-                setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                }
             });
+
+        return () => {
+            cancelled = true;
+        };
     }, [token]);
 
     async function register(payload) {
         setError(null);
-        const response = await authApi.register(payload);
-        const nextToken = response.data.token;
-
-        localStorage.setItem('token', nextToken);
-        setToken(nextToken);
-        setUser(response.data.user);
-
-        return response;
+        return await authApi.register(payload);
     }
 
     async function login(payload) {
@@ -705,6 +714,7 @@ export function AuthProvider({ children }) {
 
     const value = useMemo(() => ({
         user,
+        role: user?.role ?? null,
         token,
         loading,
         error,
@@ -734,7 +744,7 @@ export function useAuth() {
 
 **What to export:** Export `AuthProvider` and `useAuth`. You usually do not need to export `AuthContext` itself.
 
-**What components will use:** Pages call `const { user, login, logout, isAuthenticated, loading } = useAuth();`.
+**What components will use:** Pages call `const { user, role, login, logout, isAuthenticated, loading } = useAuth();`. `IndexRedirect` uses `role` to choose the correct dashboard path.
 
 **Check:** Refreshing the browser should keep the user logged in if the token is still valid.
 
@@ -755,7 +765,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.jsx';
-import router from './router.jsx';
+import router from './router/index.jsx';
 import '../css/app.css';
 
 createRoot(document.getElementById('root')).render(
@@ -886,7 +896,7 @@ async function handleSubmit(event) {
 
     try {
         await login(form); // or register(form)
-        navigate('/dashboard');
+        navigate('/');
     } catch (error) {
         if (error.response?.status === 422) {
             setErrors(error.response.data.errors);
@@ -948,15 +958,31 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function IndexRedirect() {
-    const { isAuthenticated, loading } = useAuth();
+    const { role, isAuthenticated, loading } = useAuth();
 
     if (loading) {
-        return <div>Loading...</div>;
+        return (
+            <div className="empty-state">
+                <p className="empty-state-title">Loading...</p>
+                <p className="empty-state-copy">Checking your session.</p>
+            </div>
+        );
     }
 
-    return isAuthenticated
-        ? <Navigate to="/dashboard" replace />
-        : <Navigate to="/login" replace />;
+    if (!isAuthenticated || !role) {
+        return <Navigate to="/login" replace />;
+    }
+
+    switch (role) {
+        case 'company':
+            return <Navigate to="/company/dashboard" replace />;
+        case 'student':
+            return <Navigate to="/student/dashboard" replace />;
+        case 'admin':
+            return <Navigate to="/admin/dashboard" replace />;
+        default:
+            return <Navigate to="/login" replace />;
+    }
 }
 ```
 
@@ -970,11 +996,16 @@ export default function GuestOnlyRoute() {
     const { isAuthenticated, loading } = useAuth();
 
     if (loading) {
-        return <div>Loading...</div>;
+        return (
+            <div className="empty-state">
+                <p className="empty-state-title">Loading...</p>
+                <p className="empty-state-copy">Checking your session.</p>
+            </div>
+        );
     }
 
     return isAuthenticated
-        ? <Navigate to="/dashboard" replace />
+        ? <Navigate to="/" replace />
         : <Outlet />;
 }
 ```
@@ -989,7 +1020,12 @@ export default function ProtectedRoute() {
     const { isAuthenticated, loading } = useAuth();
 
     if (loading) {
-        return <div>Loading...</div>;
+        return (
+            <div className="empty-state">
+                <p className="empty-state-title">Loading...</p>
+                <p className="empty-state-copy">Checking your session.</p>
+            </div>
+        );
     }
 
     return isAuthenticated
@@ -1008,7 +1044,12 @@ export default function RoleRoute({ allowedRoles }) {
     const { user, loading } = useAuth();
 
     if (loading) {
-        return <div>Loading...</div>;
+        return (
+            <div className="empty-state">
+                <p className="empty-state-title">Loading...</p>
+                <p className="empty-state-copy">Checking your session.</p>
+            </div>
+        );
     }
 
     return user && allowedRoles.includes(user.role)
@@ -1017,25 +1058,26 @@ export default function RoleRoute({ allowedRoles }) {
 }
 ```
 
-Your `AuthContext` must expose `isAuthenticated`:
+Your `AuthContext` must expose `isAuthenticated` and `role`:
 
 ```js
 const isAuthenticated = Boolean(user && token);
+const role = user?.role ?? null;
 ```
 
 and include it in the provider value.
 
-**Check:** Visiting `/dashboard` while logged out redirects to `/login`; visiting a company-only page as a student shows a 403 page or redirects.
+**Check:** Visiting `/` while logged in routes companies to `/company/dashboard`, students to `/student/dashboard`, and admins to `/admin/dashboard`. Visiting a company-only page as a student shows a 403 page or redirects.
 
 #### Step 6 - Add React routes
 
-**Goal:** Connect URLs like `/login` and `/dashboard` to React pages.
+**Goal:** Connect URLs like `/login`, `/student/dashboard`, and `/company/dashboard` to React pages.
 
 **Why we do this:** Laravel's `routes/web.php` only loads the React app shell. React Router decides which page component appears after the app loads.
 
 **What this does:** `resources/js/router/index.jsx` becomes the frontend route map.
 
-**Do this:** Use your existing `resources/js/router.jsx` file, or rename it to `resources/js/router/index.jsx` if you prefer a router folder. Add `/login`, `/register`, `/dashboard`, and one test role route like `/company/dashboard`; update `main.jsx` to render the router.
+**Do this:** Use your existing `resources/js/router.jsx` file, or rename it to `resources/js/router/index.jsx` if you prefer a router folder. Add `/login`, `/register`, role-specific dashboard routes such as `/student/dashboard` and `/company/dashboard`, and update `main.jsx` to render the router.
 
 **Expected layout and CSS:**
 
@@ -1049,10 +1091,18 @@ and include it in the provider value.
 Import layouts only in the router file:
 
 ```jsx
-import GuestLayout from './components/layouts/GuestLayout';
-import DefaultLayout from './components/layouts/DefaultLayout';
-import Login from './pages/auth/Login';
-import Register from './pages/auth/Register';
+import GuestLayout from '../components/layouts/GuestLayout';
+import DefaultLayout from '../components/layouts/DefaultLayout';
+import IndexRedirect from '../components/common/IndexRedirect';
+import GuestOnlyRoute from '../components/common/GuestOnlyRoute';
+import ProtectedRoute from '../components/common/ProtectedRoute';
+import RoleRoute from '../components/common/RoleRoute';
+import Login from '../pages/auth/Login';
+import Register from '../pages/auth/Register';
+import Dashboard from '../pages/Dashboard';
+import Browse from '../pages/internships/Browse';
+import Detail from '../pages/internships/Detail';
+import Forbidden from '../pages/errors/Forbidden';
 ```
 
 Then nest pages under layouts:
@@ -1081,7 +1131,13 @@ const router = createBrowserRouter([
             {
                 element: <DefaultLayout />,
                 children: [
-                    { path: '/dashboard', element: <Dashboard /> },
+                    {
+                        element: <RoleRoute allowedRoles={['company']} />,
+                        children: [
+                            { path: '/company/dashboard', element: <Dashboard /> },
+                        ],
+                    },
+                    { path: '/student/dashboard', element: <Dashboard /> },
                     { path: '/internships', element: <Browse /> },
                     { path: '/internships/:id', element: <Detail /> },
                     { path: '/403', element: <Forbidden /> },
@@ -1090,11 +1146,13 @@ const router = createBrowserRouter([
         ],
     },
 ]);
+
+export default router;
 ```
 
 This means `GuestLayout` owns the auth screen frame, and `Login`/`Register` only own the form card.
 
-The same rule applies to main pages: `Browse.jsx`, `Profile.jsx`, `Applicants.jsx`, and similar child pages should not import `DefaultLayout`. The router wraps them with `DefaultLayout`, and `DefaultLayout` renders them through `<Outlet />`.
+The same rule applies to main pages: `Browse.jsx`, `Profile.jsx`, `Applications.jsx`, and similar child pages should not import `DefaultLayout`. The router wraps them with `DefaultLayout`, and `DefaultLayout` renders them through `<Outlet />`.
 
 **Layout file skeletons:**
 
@@ -1138,7 +1196,7 @@ function navClass({ isActive }) {
 }
 
 export default function DefaultLayout() {
-    const { user, logout } = useAuth();
+    const { user, role, logout } = useAuth();
 
     return (
         <main className="app-shell">
@@ -1148,10 +1206,33 @@ export default function DefaultLayout() {
                 </div>
 
                 <nav className="sidebar-nav">
-                    <NavLink to="/dashboard" className={navClass}>Dashboard</NavLink>
-                    <NavLink to="/internships" className={navClass}>Internships</NavLink>
-                    <NavLink to="/student/profile" className={navClass}>Profile</NavLink>
-                    <NavLink to="/student/applications" className={navClass}>Applications</NavLink>
+                    {role === 'company' && (
+                        <>
+                            <NavLink to="/company/dashboard" className={navClass}>Dashboard</NavLink>
+                            <NavLink to="/company/internships" end className={navClass}>My Internships</NavLink>
+                            <NavLink to="/company/internships/archived" className={navClass}>Archived Internships</NavLink>
+                            <NavLink to="/company/profile" className={navClass}>Profile</NavLink>
+                            <NavLink to="/company/applications" className={navClass}>Applications</NavLink>
+                        </>
+                    )}
+
+                    {role === 'student' && (
+                        <>
+                            <NavLink to="/student/dashboard" className={navClass}>Dashboard</NavLink>
+                            <NavLink to="/internships" className={navClass}>Browse Internships</NavLink>
+                            <NavLink to="/profile" className={navClass}>Profile</NavLink>
+                            <NavLink to="/applications" className={navClass}>My Applications</NavLink>
+                        </>
+                    )}
+
+                    {role === 'admin' && (
+                        <>
+                            <NavLink to="/admin/dashboard" className={navClass}>Dashboard</NavLink>
+                            <NavLink to="/admin/companies" className={navClass}>Manage Companies</NavLink>
+                            <NavLink to="/admin/internships" className={navClass}>Manage Internships</NavLink>
+                            <NavLink to="/admin/users" className={navClass}>Manage Users</NavLink>
+                        </>
+                    )}
                 </nav>
             </aside>
 
@@ -1159,10 +1240,9 @@ export default function DefaultLayout() {
                 <header className="app-topbar">
                     <div className="topbar-title">
                         <h1>Smart Internship Platform</h1>
-                        <p>{user?.role ?? 'Guest'}</p>
+                        <p>{user.role.charAt(0).toUpperCase() + user.role.slice(1)}</p>
                     </div>
                     <div className="topbar-actions">
-                        <span className="user-chip">{user?.name}</span>
                         <button className="btn btn-ghost" onClick={logout}>Logout</button>
                     </div>
                 </header>
@@ -1239,7 +1319,7 @@ No API call is required yet.
 
 **Router update:** Replace dashboard placeholder elements with `<Dashboard />` and add `/403` with `<Forbidden />`.
 
-**Check:** After login, `/dashboard` shows the styled page; wrong-role users can be sent to `/403`.
+**Check:** After login, users land on `/`, and `IndexRedirect` sends them to the styled dashboard for their role. Wrong-role users can be sent to `/403`.
 
 ### Exit Criteria
 
@@ -1250,9 +1330,9 @@ No API call is required yet.
 
 ---
 
-## Slice 2 - Browse Internships (Public, Read-Only)
+## Slice 2 - Browse Internships (Authenticated, Read-Only)
 
-**Why second:** Establishes the listing pattern used everywhere. No auth required, so you can focus on the Model -> Resource -> List flow.
+**Why second:** Establishes the listing pattern used everywhere. In the current app structure the React page is authenticated, so you can focus on the Model -> Resource -> List flow inside the main app shell.
 
 ### Slice Contract
 
@@ -1349,9 +1429,10 @@ These routes live inside the existing `/api/v1` group.
 **Frontend files created in this slice:**
 
 - `resources/js/api/internshipApi.js`
-- `resources/js/components/internships/InternshipCard.jsx`
-- `resources/js/components/internships/InternshipList.jsx`
-- `resources/js/components/internships/InternshipFilters.jsx`
+- `resources/js/api/skillApi.js`
+- `resources/js/components/common/internships/InternshipCard.jsx`
+- `resources/js/components/common/internships/InternshipList.jsx`
+- `resources/js/components/common/internships/InternshipFilters.jsx`
 - `resources/js/pages/internships/Browse.jsx`
 - `resources/js/pages/internships/Detail.jsx`
 - `resources/js/components/common/LoadingSpinner.jsx`
@@ -1363,7 +1444,7 @@ These routes live inside the existing `/api/v1` group.
 - `/internships` -> `Browse`
 - `/internships/:id` -> `Detail`
 
-Both routes are children of `DefaultLayout`. They can be public routes if you want browsing without login, but they still use the main app shell.
+Both routes are children of `ProtectedRoute` and `DefaultLayout` in the current app structure. The shared skill lookup endpoint remains public so forms can load available skills.
 
 ### Exact Backend Files To Create In This Slice
 
@@ -1621,7 +1702,7 @@ public function companyProfile(): HasOne
 After these models exist, update Slice 1 registration logic in `app/Http/Controllers/Api/V1/AuthController.php` so company users get their required profile row:
 
 ```php
-if ($user->role === UserRole::Company) {
+if ($user->role === UserRole::COMPANY) {
     $user->companyProfile()->create([
         'company_name' => $user->name,
     ]);
@@ -1682,17 +1763,34 @@ public function toArray(Request $request): array
 Create `app/Http/Resources/InternshipCollection.php`:
 
 ```php
-public function toArray(Request $request): array
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\ResourceCollection;
+
+class InternshipCollection extends ResourceCollection
 {
-    return [
-        'data' => InternshipResource::collection($this->collection),
-        'meta' => [
-            'current_page' => $this->resource->currentPage(),
-            'last_page' => $this->resource->lastPage(),
-            'per_page' => $this->resource->perPage(),
-            'total' => $this->resource->total(),
-        ],
-    ];
+    public $collects = InternshipResource::class;
+
+    public function toArray(Request $request): array
+    {
+        return parent::toArray($request);
+    }
+
+    public function paginationInformation($request, $paginated, $default): array
+    {
+        return [
+            'links' => $default['links'],
+            'meta' => [
+                'current_page' => $default['meta']['current_page'],
+                'last_page' => $default['meta']['last_page'],
+                'per_page' => $default['meta']['per_page'],
+                'total' => $default['meta']['total'],
+            ],
+        ];
+    }
 }
 ```
 
@@ -1716,7 +1814,7 @@ class InternshipController extends Controller
     {
         $query = Internship::query()
             ->with(['company', 'skills'])
-            ->where('status', InternshipStatus::Open->value);
+            ->where('status', InternshipStatus::OPEN->value);
 
         if ($search = $request->query('search')) {
             $query->where(function ($builder) use ($search): void {
@@ -1756,8 +1854,11 @@ use App\Http\Controllers\Api\V1\InternshipController;
 use App\Http\Controllers\Api\V1\SkillController;
 
 Route::get('/skills', [SkillController::class, 'index']);
-Route::get('/internships', [InternshipController::class, 'index']);
-Route::get('/internships/{internship}', [InternshipController::class, 'show']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/internships', [InternshipController::class, 'index']);
+    Route::get('/internships/{internship}', [InternshipController::class, 'show']);
+});
 ```
 
 Create `app/Http/Controllers/Api/V1/SkillController.php`:
@@ -1770,10 +1871,11 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SkillResource;
 use App\Models\Skill;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class SkillController extends Controller
 {
-    public function index()
+    public function index(): AnonymousResourceCollection
     {
         return SkillResource::collection(
             Skill::query()->orderBy('name')->get()
@@ -1868,23 +1970,24 @@ class SkillController extends Controller
 
 **Check:** Postman can fetch a list and one internship by id.
 
-#### Step 8 - Add public API routes
+#### Step 8 - Add read API routes
 
-**Goal:** Make the browse endpoints reachable.
+**Goal:** Make the skill and browse endpoints reachable.
 
-**Why we do this:** Controller methods do nothing until API routes point to them.
+**Why we do this:** Controller methods do nothing until API routes point to them. The create/edit internship forms also need a reusable public skill list from the backend.
 
-**What this does:** Adds public JSON endpoints under `/api/v1`.
+**What this does:** Adds `GET /api/v1/skills` as a public lookup endpoint, plus authenticated general internship browse/detail endpoints under `/api/v1`.
 
-**Do this:** In `routes/api.php`, add `GET /internships` and `GET /internships/{internship}` inside the `/v1` group.
+**Do this:** In `routes/api.php`, add `GET /skills` inside the `/v1` group. Add `GET /internships` and `GET /internships/{internship}` inside the `auth:sanctum` group.
 
-**Check:** `GET /api/v1/internships` works without a token.
+**Check:** `GET /api/v1/skills` works without a token, while `GET /api/v1/internships` works for logged-in users.
 
 ### Postman Verification
 
-- [ ] `GET /api/v1/internships` returns paginated list.
-- [ ] `GET /api/v1/internships/1` returns one with company + skills nested.
+- [ ] Logged-in user: `GET /api/v1/internships` returns paginated list.
+- [ ] Logged-in user: `GET /api/v1/internships/1` returns one with company + skills nested.
 - [ ] `GET /api/v1/internships?search=react` filters results.
+- [ ] `GET /api/v1/skills` returns `{ data: [{ id, name }] }` ordered by name.
 
 ### Exact Frontend Files To Create Or Update In This Slice
 
@@ -1893,7 +1996,7 @@ Create these folders if missing:
 ```text
 resources/js/api/
 resources/js/components/common/
-resources/js/components/internships/
+resources/js/components/common/internships/
 resources/js/pages/internships/
 ```
 
@@ -1988,7 +2091,7 @@ export default function Pagination({ meta, onPageChange }) {
 }
 ```
 
-Create `resources/js/components/internships/InternshipCard.jsx`:
+Create `resources/js/components/common/internships/InternshipCard.jsx`:
 
 ```jsx
 import { Link } from 'react-router-dom';
@@ -2020,7 +2123,7 @@ export default function InternshipCard({ internship }) {
 }
 ```
 
-Create `resources/js/components/internships/InternshipList.jsx`:
+Create `resources/js/components/common/internships/InternshipList.jsx`:
 
 ```jsx
 import InternshipCard from './InternshipCard';
@@ -2045,7 +2148,7 @@ export default function InternshipList({ internships }) {
 }
 ```
 
-Create `resources/js/components/internships/InternshipFilters.jsx`:
+Create `resources/js/components/common/internships/InternshipFilters.jsx`:
 
 ```jsx
 export default function InternshipFilters({ filters, onChange, onSubmit }) {
@@ -2096,8 +2199,8 @@ import * as internshipApi from '../../api/internshipApi';
 import ErrorAlert from '../../components/common/ErrorAlert';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Pagination from '../../components/common/Pagination';
-import InternshipFilters from '../../components/internships/InternshipFilters';
-import InternshipList from '../../components/internships/InternshipList';
+import InternshipFilters from '../../components/common/internships/InternshipFilters';
+import InternshipList from '../../components/common/internships/InternshipList';
 
 export default function Browse() {
     const [internships, setInternships] = useState([]);
@@ -2266,9 +2369,19 @@ Inside the existing `DefaultLayout` children array, add:
 
 **What this does:** `internshipApi.js` exposes `fetchAll(filters)` and `fetchOne(id)`.
 
-**Do this:** Create `resources/js/api/internshipApi.js`; pass `search`, `page`, and skill filters as query params.
+**Do this:** Create `resources/js/api/internshipApi.js`; pass `search`, `page`, and skill filters as query params. Also create `resources/js/api/skillApi.js` so forms and filters can load the shared skill list through `skillApi.fetchAll()`.
 
 **Check:** Calling `fetchAll({ search: 'react' })` hits `/api/v1/internships?search=react`.
+
+Skill API client shape:
+
+```js
+import api from './axios';
+
+export function fetchAll() {
+    return api.get('/skills');
+}
+```
 
 #### Step 2 - Create `InternshipCard`
 
@@ -2278,7 +2391,7 @@ Inside the existing `DefaultLayout` children array, add:
 
 **What this does:** The card shows title, company, type/location, short description, skills, and a link to detail.
 
-**Do this:** Create `resources/js/components/internships/InternshipCard.jsx`.
+**Do this:** Create `resources/js/components/common/internships/InternshipCard.jsx`.
 
 **Expected props:**
 
@@ -2370,7 +2483,7 @@ Expected filter fields:
 
 #### Step 4 - Create the browse page
 
-**Goal:** Build the public `/internships` page.
+**Goal:** Build the general `/internships` browse page.
 
 **Why we do this:** This is the first real React page powered by Laravel data.
 
@@ -2600,7 +2713,7 @@ Route::middleware(['auth:sanctum', 'role:company'])->group(function () {
 
 **Frontend files created in this slice:**
 
-- `resources/js/components/internships/InternshipForm.jsx`
+- `resources/js/components/common/internships/InternshipForm.jsx`
 - `resources/js/pages/company/InternshipCreate.jsx`
 - `resources/js/pages/company/InternshipEdit.jsx`
 - `resources/js/pages/company/Internships.jsx`
@@ -2608,6 +2721,7 @@ Route::middleware(['auth:sanctum', 'role:company'])->group(function () {
 
 **React routes added in `router.jsx`:**
 
+- `/company/dashboard`
 - `/company/internships`
 - `/company/internships/create`
 - `/company/internships/:id/edit`
@@ -2716,7 +2830,7 @@ class InternshipPolicy
 {
     public function create(User $user): bool
     {
-        return $user->role === UserRole::Company;
+        return $user->role === UserRole::COMPANY;
     }
 
     public function update(User $user, Internship $internship): bool
@@ -2736,7 +2850,7 @@ class InternshipPolicy
 
     private function ownsInternship(User $user, Internship $internship): bool
     {
-        return $user->role === UserRole::Company
+        return $user->role === UserRole::COMPANY
             && $user->companyProfile !== null
             && $internship->company_profile_id === $user->companyProfile->id;
     }
@@ -2780,7 +2894,7 @@ class InternshipService
 
         $internship = $companyProfile->internships()->create([
             ...$data,
-            'status' => InternshipStatus::Open,
+            'status' => InternshipStatus::OPEN,
         ]);
 
         $internship->skills()->sync($skillIds);
@@ -2804,7 +2918,7 @@ class InternshipService
     public function archive(Internship $internship): Internship
     {
         $internship->update([
-            'status' => InternshipStatus::Archived,
+            'status' => InternshipStatus::ARCHIVED,
             'archived_at' => now(),
         ]);
 
@@ -2864,7 +2978,7 @@ public function companyIndex(Request $request): InternshipCollection
     return new InternshipCollection(
         $companyProfile->internships()
             ->with(['company', 'skills'])
-            ->where('status', '!=', InternshipStatus::Archived->value)
+            ->where('status', '!=', InternshipStatus::ARCHIVED->value)
             ->latest()
             ->paginate(12)
     );
@@ -2879,7 +2993,7 @@ public function archived(Request $request): InternshipCollection
     return new InternshipCollection(
         $companyProfile->internships()
             ->with(['company', 'skills'])
-            ->where('status', InternshipStatus::Archived->value)
+            ->where('status', InternshipStatus::ARCHIVED->value)
             ->latest('archived_at')
             ->paginate(12)
     );
@@ -3035,7 +3149,7 @@ Update `resources/js/api/internshipApi.js` by keeping the Slice 2 exports and ad
 
 ```js
 export function create(payload) {
-    return api.post('/internships', payload);
+    return api.post('/company/internships', payload);
 }
 
 export function update(id, payload) {
@@ -3059,7 +3173,7 @@ export function fetchArchived(params = {}) {
 }
 ```
 
-Create `resources/js/components/internships/InternshipForm.jsx`:
+Create `resources/js/components/common/internships/InternshipForm.jsx`:
 
 ```jsx
 import { useState } from 'react';
@@ -3202,7 +3316,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as internshipApi from '../../api/internshipApi';
 import * as skillApi from '../../api/skillApi';
-import InternshipForm from '../../components/internships/InternshipForm';
+import InternshipForm from '../../components/common/internships/InternshipForm';
 
 export default function InternshipCreate() {
     const navigate = useNavigate();
@@ -3256,7 +3370,7 @@ import * as internshipApi from '../../api/internshipApi';
 import * as skillApi from '../../api/skillApi';
 import ErrorAlert from '../../components/common/ErrorAlert';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import InternshipForm from '../../components/internships/InternshipForm';
+import InternshipForm from '../../components/common/internships/InternshipForm';
 
 export default function InternshipEdit() {
     const { id } = useParams();
@@ -3477,6 +3591,7 @@ Update `resources/js/router/index.jsx`:
 
 ```jsx
 import RoleRoute from '../components/common/RoleRoute';
+import Dashboard from '../pages/Dashboard';
 import ArchivedInternships from '../pages/company/ArchivedInternships';
 import InternshipCreate from '../pages/company/InternshipCreate';
 import InternshipEdit from '../pages/company/InternshipEdit';
@@ -3489,6 +3604,7 @@ Inside the protected `DefaultLayout` children array, add a role-protected group:
 {
     element: <RoleRoute allowedRoles={['company']} />,
     children: [
+        { path: '/company/dashboard', element: <Dashboard /> },
         { path: '/company/internships', element: <Internships /> },
         { path: '/company/internships/create', element: <InternshipCreate /> },
         { path: '/company/internships/:id/edit', element: <InternshipEdit /> },
@@ -3519,7 +3635,7 @@ Inside the protected `DefaultLayout` children array, add a role-protected group:
 
 **What this does:** The form owns controlled inputs and calls an `onSubmit` prop.
 
-**Do this:** Create `resources/js/components/internships/InternshipForm.jsx`; support initial values for edit mode.
+**Do this:** Create `resources/js/components/common/internships/InternshipForm.jsx`; support initial values for edit mode.
 
 **Expected props:**
 
@@ -3617,7 +3733,7 @@ Use the same two-column management layout as the wireframe:
 
 The sidebar can show help text, validation reminders, or a lightweight preview. Use `section-title`, `section-copy`, and `skill-pill`.
 
-**Check:** Creating from UI makes the internship appear in public Browse.
+**Check:** Creating from UI makes the internship appear in Browse.
 
 #### Step 4 - Create the company edit page
 
@@ -3655,13 +3771,13 @@ Use the same classes as Create:
 - Save button: `btn btn-primary`
 - Cancel/back button: `btn btn-ghost`
 
-**Check:** Editing updates the database and the public detail page.
+**Check:** Editing updates the database and the detail page.
 
 #### Step 5 - Create the company internship list
 
 **Goal:** Show a company its own internships.
 
-**Why we do this:** Companies need a management view separate from public Browse.
+**Why we do this:** Companies need a management view separate from Browse.
 
 **What this does:** `Internships.jsx` fetches company-owned internships and shows create/edit/archive/delete actions.
 
@@ -3756,7 +3872,7 @@ Call `internshipApi.fetchArchived()` on page load.
 
 **What this does:** React Router wraps company pages in `ProtectedRoute` and `RoleRoute`.
 
-**Do this:** Add `/company/internships`, `/company/internships/create`, `/company/internships/:id/edit`, and `/company/internships/archived` to `resources/js/router/index.jsx`.
+**Do this:** Add `/company/dashboard`, `/company/internships`, `/company/internships/create`, `/company/internships/:id/edit`, and `/company/internships/archived` to `resources/js/router/index.jsx`.
 
 **Check:** Company routes reject guests and non-company users.
 
@@ -3774,7 +3890,7 @@ Call `internshipApi.fetchArchived()` on page load.
 
 ### Exit Criteria
 
-- Company creates internship from UI -> appears in public Browse.
+- Company creates internship from UI -> appears in Browse.
 - Company edits -> change reflected.
 - Company archives -> no longer in Browse, shows in Archived tab.
 - Validation errors from backend display next to the correct fields.
@@ -3870,9 +3986,10 @@ Route::middleware(['auth:sanctum', 'role:student'])->group(function () {
 
 **React route added in `router.jsx`:**
 
-- `/student/profile`
+- `/profile`
 
 This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['student']}`, and `DefaultLayout`.
+This is the React page route used by the student sidebar. Keep the backend API endpoints under `/api/v1/student/profile`.
 
 ### Exact Backend Files To Create Or Update In This Slice
 
@@ -4562,7 +4679,7 @@ Inside the student role route group:
 {
     element: <RoleRoute allowedRoles={['student']} />,
     children: [
-        { path: '/student/profile', element: <Profile /> },
+        { path: '/profile', element: <Profile /> },
     ],
 },
 ```
@@ -4776,13 +4893,13 @@ Use the sidebar for skill selection and CV upload. Use `page-header`, `page-titl
 
 #### Step 6 - Add the student profile route
 
-**Goal:** Make `/student/profile` open the profile page.
+**Goal:** Make `/profile` open the profile page.
 
 **Why we do this:** React pages need route entries.
 
 **What this does:** The route is protected by login and student role checks.
 
-**Do this:** Add `/student/profile` to `resources/js/router/index.jsx`.
+**Do this:** Add `/profile` to `resources/js/router/index.jsx`. The API client still calls `/student/profile` because Axios prefixes it with `/api/v1`.
 
 **Check:** Guests go to login; companies/admins are blocked.
 
@@ -4885,9 +5002,10 @@ For student application lists, including `student` is optional because the stude
 
 **React route added in `router.jsx`:**
 
-- `/student/applications`
+- `/applications`
 
 This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['student']}`, and `DefaultLayout`.
+This is the React page route used by the student sidebar. Keep the backend API endpoint as `/api/v1/student/applications`.
 
 **Existing page updated in this slice:**
 
@@ -4904,6 +5022,7 @@ php artisan make:model Application -mfs
 php artisan make:request Applications/StoreApplicationRequest
 php artisan make:resource ApplicationResource
 php artisan make:controller Api/V1/ApplicationController
+php artisan make:policy ApplicationPolicy --model=Application
 ```
 
 Manually create:
@@ -4940,10 +5059,10 @@ namespace App\Enums;
 
 enum ApplicationStatus: string
 {
-    case Pending = 'pending';
-    case Reviewed = 'reviewed';
-    case Accepted = 'accepted';
-    case Rejected = 'rejected';
+    case PENDING = 'pending';
+    case REVIEWED = 'reviewed';
+    case ACCEPTED = 'accepted';
+    case REJECTED = 'rejected';
 }
 ```
 
@@ -5061,12 +5180,12 @@ class ApplicationService
 {
     public function apply(StudentProfile $studentProfile, Internship $internship, array $data = []): Application
     {
-        abort_if($internship->status !== InternshipStatus::Open, 422, 'This internship is not open for applications.');
+        abort_if($internship->status !== InternshipStatus::OPEN, 422, 'This internship is not open for applications.');
 
         return Application::query()->create([
             'student_profile_id' => $studentProfile->id,
             'internship_id' => $internship->id,
-            'status' => ApplicationStatus::Pending,
+            'status' => ApplicationStatus::PENDING,
             'match_score' => 0,
             'message' => $data['message'] ?? null,
         ])->load(['studentProfile.user', 'studentProfile.skills', 'internship.company', 'internship.skills']);
@@ -5088,6 +5207,7 @@ use App\Models\Application;
 use App\Models\Internship;
 use App\Services\ApplicationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class ApplicationController extends Controller
 {
@@ -5131,15 +5251,53 @@ class ApplicationController extends Controller
     {
         $application->load(['studentProfile.user', 'studentProfile.skills', 'internship.company', 'internship.skills']);
 
-        $user = $request->user();
-        $isStudentOwner = $user->studentProfile?->id === $application->student_profile_id;
-        $isCompanyOwner = $user->companyProfile?->id === $application->internship->company_profile_id;
-
-        abort_unless($isStudentOwner || $isCompanyOwner, 403);
+        Gate::authorize('view', $application);
 
         return new ApplicationResource($application);
     }
 }
+```
+
+Update `app/Policies/ApplicationPolicy.php`:
+
+```php
+<?php
+
+namespace App\Policies;
+
+use App\Models\Application;
+use App\Models\User;
+
+class ApplicationPolicy
+{
+    public function view(User $user, Application $application): bool
+    {
+        $application->loadMissing('internship');
+
+        return $user->studentProfile?->id === $application->student_profile_id
+            || $user->companyProfile?->id === $application->internship->company_profile_id;
+    }
+
+    public function updateStatus(User $user, Application $application): bool
+    {
+        $application->loadMissing('internship');
+
+        return $user->companyProfile?->id === $application->internship->company_profile_id;
+    }
+}
+```
+
+Register the policy in `app/Providers/AppServiceProvider.php` by adding these imports:
+
+```php
+use App\Models\Application;
+use App\Policies\ApplicationPolicy;
+```
+
+Then add this line inside the existing `boot()` method, next to the `InternshipPolicy` registration:
+
+```php
+Gate::policy(Application::class, ApplicationPolicy::class);
 ```
 
 ### Backend Walkthrough
@@ -5456,7 +5614,7 @@ import Applications from '../pages/student/Applications';
 Add inside the student role group:
 
 ```jsx
-{ path: '/student/applications', element: <Applications /> },
+{ path: '/applications', element: <Applications /> },
 ```
 
 ### Frontend Walkthrough
@@ -5618,13 +5776,13 @@ If you prefer cards on mobile, use `card-grid` and `ApplicationCard`. Empty list
 
 #### Step 5 - Add student applications route
 
-**Goal:** Make `/student/applications` reachable.
+**Goal:** Make `/applications` reachable.
 
 **Why we do this:** React needs a route entry for every page.
 
 **What this does:** The route is protected by login and student role guards.
 
-**Do this:** Add `/student/applications` to `resources/js/router/index.jsx`.
+**Do this:** Add `/applications` to `resources/js/router/index.jsx`. The API client still calls `/student/applications`.
 
 **Check:** Guests and company users cannot access it.
 
@@ -5716,15 +5874,16 @@ Route::middleware(['auth:sanctum', 'role:student'])->group(function () {
 
 **Existing frontend file updated in this slice:**
 
-- `resources/js/components/internships/InternshipCard.jsx`
+- `resources/js/components/common/internships/InternshipCard.jsx`
 
 Show `MatchScoreBadge` when `internship.match_score` exists.
 
 **React route added in `router.jsx`:**
 
-- `/student/recommendations`
+- `/recommendations`
 
 This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['student']}`, and `DefaultLayout`.
+This follows the same React page-route convention as `/profile` and `/applications`. Keep the backend API endpoint as `/api/v1/student/recommendations`.
 
 ### Exact Backend Files To Create Or Update In This Slice
 
@@ -5781,7 +5940,7 @@ public function __construct(
 
 public function apply(StudentProfile $studentProfile, Internship $internship, array $data = []): Application
 {
-    abort_if($internship->status !== InternshipStatus::Open, 422, 'This internship is not open for applications.');
+    abort_if($internship->status !== InternshipStatus::OPEN, 422, 'This internship is not open for applications.');
 
     $studentProfile->loadMissing('skills');
     $internship->loadMissing('skills');
@@ -5789,7 +5948,7 @@ public function apply(StudentProfile $studentProfile, Internship $internship, ar
     return Application::query()->create([
         'student_profile_id' => $studentProfile->id,
         'internship_id' => $internship->id,
-        'status' => ApplicationStatus::Pending,
+        'status' => ApplicationStatus::PENDING,
         'match_score' => $this->matchScoreService->calculate($studentProfile, $internship),
         'message' => $data['message'] ?? null,
     ])->load(['studentProfile.user', 'studentProfile.skills', 'internship.company', 'internship.skills']);
@@ -5830,7 +5989,7 @@ class MatchController extends Controller
 
         $internships = Internship::query()
             ->with(['company', 'skills'])
-            ->where('status', InternshipStatus::Open->value)
+            ->where('status', InternshipStatus::OPEN->value)
             ->latest()
             ->get()
             ->map(function (Internship $internship) use ($profile, $service) {
@@ -5966,10 +6125,10 @@ export default function MatchScoreBadge({ score }) {
 }
 ```
 
-Update `resources/js/components/internships/InternshipCard.jsx`:
+Update `resources/js/components/common/internships/InternshipCard.jsx`:
 
 ```jsx
-import MatchScoreBadge from '../match/MatchScoreBadge';
+import MatchScoreBadge from '../../match/MatchScoreBadge';
 ```
 
 Add this inside the card metadata or action area:
@@ -5985,7 +6144,7 @@ import { useEffect, useState } from 'react';
 import * as matchApi from '../../api/matchApi';
 import ErrorAlert from '../../components/common/ErrorAlert';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import InternshipList from '../../components/internships/InternshipList';
+import InternshipList from '../../components/common/internships/InternshipList';
 
 export default function Recommendations() {
     const [internships, setInternships] = useState([]);
@@ -6060,7 +6219,7 @@ import Recommendations from '../pages/student/Recommendations';
 Add inside the student role group:
 
 ```jsx
-{ path: '/student/recommendations', element: <Recommendations /> },
+{ path: '/recommendations', element: <Recommendations /> },
 ```
 
 ### Frontend Walkthrough
@@ -6207,13 +6366,13 @@ Use `page-header` above the hero, `match-badge` on each card, and `empty-state` 
 
 #### Step 5 - Add recommendations route
 
-**Goal:** Make `/student/recommendations` reachable.
+**Goal:** Make `/recommendations` reachable.
 
 **Why we do this:** React needs a route entry and role guard.
 
 **What this does:** Protects recommendations behind student auth.
 
-**Do this:** Add the route to `resources/js/router/index.jsx`.
+**Do this:** Add the route to `resources/js/router/index.jsx`. The API client still calls `/student/recommendations`.
 
 **Check:** Guests and companies are blocked.
 
@@ -6266,7 +6425,7 @@ application.internship.company_profile_id === auth user company profile id
 
 **Frontend files created in this slice:**
 
-- `resources/js/pages/company/Applicants.jsx`
+- `resources/js/pages/company/Applications.jsx`
 - `resources/js/components/applications/ApplicantRow.jsx`
 
 **Existing frontend file updated in this slice:**
@@ -6277,7 +6436,7 @@ Add `fetchForCompany()` and `updateStatus(applicationId, status)`.
 
 **React route added in `router.jsx`:**
 
-- `/company/applicants`
+- `/company/applications`
 
 This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['company']}`, and `DefaultLayout`.
 
@@ -6328,15 +6487,13 @@ Add this method to `app/Http/Controllers/Api/V1/ApplicationController.php`:
 
 ```php
 use App\Http\Requests\Applications\UpdateStatusRequest;
+use Illuminate\Support\Facades\Gate;
 
 public function updateStatus(UpdateStatusRequest $request, Application $application): ApplicationResource
 {
     $application->load(['internship', 'studentProfile.user', 'studentProfile.skills']);
 
-    $companyProfile = $request->user()->companyProfile;
-
-    abort_if(! $companyProfile, 422, 'Company profile is required.');
-    abort_unless($application->internship->company_profile_id === $companyProfile->id, 403);
+    Gate::authorize('updateStatus', $application);
 
     $application->update([
         'status' => $request->validated('status'),
@@ -6470,7 +6627,7 @@ export default function ApplicantRow({ application, updating, onStatusChange }) 
 }
 ```
 
-Create `resources/js/pages/company/Applicants.jsx`:
+Create `resources/js/pages/company/Applications.jsx`:
 
 ```jsx
 import { useEffect, useState } from 'react';
@@ -6479,7 +6636,7 @@ import ApplicantRow from '../../components/applications/ApplicantRow';
 import ErrorAlert from '../../components/common/ErrorAlert';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
-export default function Applicants() {
+export default function CompanyApplications() {
     const [applications, setApplications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -6519,7 +6676,7 @@ export default function Applicants() {
         <>
             <div className="page-header">
                 <div>
-                    <h1 className="page-title">Applicants</h1>
+                    <h1 className="page-title">Applications</h1>
                     <p className="page-subtitle">Review students who applied to your internships.</p>
                 </div>
             </div>
@@ -6559,13 +6716,13 @@ export default function Applicants() {
 Update `resources/js/router/index.jsx`:
 
 ```jsx
-import Applicants from '../pages/company/Applicants';
+import CompanyApplications from '../pages/company/Applications';
 ```
 
 Add inside the company role group:
 
 ```jsx
-{ path: '/company/applicants', element: <Applicants /> },
+{ path: '/company/applications', element: <CompanyApplications /> },
 ```
 
 ### Frontend Walkthrough
@@ -6588,9 +6745,9 @@ Add inside the company role group:
 
 **Why we do this:** Companies need a review workspace for incoming applications.
 
-**What this does:** `Applicants.jsx` fetches company applications and renders rows or groups by internship.
+**What this does:** `Applications.jsx` fetches company applications and renders rows or groups by internship.
 
-**Do this:** Create `resources/js/pages/company/Applicants.jsx`.
+**Do this:** Create `resources/js/pages/company/Applications.jsx`.
 
 **State/functions to declare:**
 
@@ -6728,9 +6885,9 @@ If there is no CV, render muted text with `form-help` or disable a `btn btn-ghos
 
 **Check:** Applicants without CVs do not show a broken link.
 
-#### Step 5 - Add company applicants route
+#### Step 5 - Add company applications route
 
-**Goal:** Make `/company/applicants` reachable.
+**Goal:** Make `/company/applications` reachable.
 
 **Why we do this:** React needs a guarded page route.
 
@@ -6825,6 +6982,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
 - `/admin/dashboard`
 
 This route must be inside `ProtectedRoute`, `RoleRoute allowedRoles={['admin']}`, and `DefaultLayout`.
+It must exist before testing admin login, because `IndexRedirect` already sends admin users to `/admin/dashboard`.
 
 ### Exact Backend Files To Create Or Update In This Slice
 
@@ -6852,7 +7010,7 @@ User::query()->updateOrCreate(
     [
         'name' => 'Admin',
         'password' => 'password',
-        'role' => UserRole::Admin,
+        'role' => UserRole::ADMIN,
     ]
 );
 ```
@@ -6876,9 +7034,9 @@ class AdminDashboardService
     {
         return [
             'total_users' => User::query()->count(),
-            'total_students' => User::query()->where('role', UserRole::Student->value)->count(),
-            'total_companies' => User::query()->where('role', UserRole::Company->value)->count(),
-            'active_internships' => Internship::query()->where('status', InternshipStatus::Open->value)->count(),
+            'total_students' => User::query()->where('role', UserRole::STUDENT->value)->count(),
+            'total_companies' => User::query()->where('role', UserRole::COMPANY->value)->count(),
+            'active_internships' => Internship::query()->where('status', InternshipStatus::OPEN->value)->count(),
             'total_applications' => Application::query()->count(),
         ];
     }
@@ -6999,7 +7157,7 @@ export function deleteUser(id) {
 
 **Why we do this:** You cannot test admin-only routes without an admin user.
 
-**What this does:** `DatabaseSeeder` creates a user with `UserRole::Admin`.
+**What this does:** `DatabaseSeeder` creates a user with `UserRole::ADMIN`.
 
 **Do this:** Add a local admin seed with a known email/password for development only.
 
@@ -7494,7 +7652,7 @@ Use `alert alert-error` for failed API calls and `empty-state` for missing table
 
 **Goal:** Make `/admin/dashboard` reachable only to admins.
 
-**Why we do this:** React should mirror backend role protection.
+**Why we do this:** React should mirror backend role protection, and `IndexRedirect` already routes admin users here after login.
 
 **What this does:** The route uses `ProtectedRoute` and `RoleRoute role="admin"`.
 
@@ -7589,10 +7747,10 @@ class StudentApplicationTest extends TestCase
 
     public function test_student_can_apply_once_to_open_internship(): void
     {
-        $student = User::factory()->create(['role' => UserRole::Student]);
+        $student = User::factory()->create(['role' => UserRole::STUDENT]);
         $studentProfile = StudentProfile::factory()->for($student)->create();
 
-        $company = User::factory()->create(['role' => UserRole::Company]);
+        $company = User::factory()->create(['role' => UserRole::COMPANY]);
         $companyProfile = CompanyProfile::factory()->for($company)->create();
         $internship = Internship::factory()->for($companyProfile, 'company')->create();
 
@@ -7969,7 +8127,7 @@ npm run lint
 
 Manual browser checklist:
 
-- Visit `/internships`, `/internships/:id`, `/student/profile`, `/student/applications`, `/student/recommendations`, `/company/internships`, `/company/applicants`, and `/admin/dashboard`.
+- Visit `/internships`, `/internships/:id`, `/profile`, `/applications`, `/recommendations`, `/company/internships`, `/company/applications`, and `/admin/dashboard`.
 - Shrink the browser to mobile width and confirm tables scroll horizontally instead of overflowing the whole page.
 - Submit each form with invalid data and confirm Laravel `422` errors appear near the matching fields.
 - Log in as each role and confirm React Router blocks pages for the wrong role.
@@ -8114,6 +8272,558 @@ Pay special attention to pages using:
 **Do this:** Add `Dockerfile`, `docker-compose.yml`, or deployment notes only if your submission needs them.
 
 **Check:** Deployment instructions do not replace the main local setup instructions.
+
+---
+
+## Slice 10 - Final Product Polish + Design Hardening
+
+**Final refinement pass after Slice 9.**
+
+This slice should not introduce large new features. It is for small, high-impact improvements that make the app feel complete and for backend design checks that are easy to miss when building vertical slices quickly.
+
+### Slice Contract
+
+The slice is complete when the app feels coherent as one product and the backend has no obvious trust-boundary, data-integrity, or ownership gaps.
+
+**UI/UX must finish with:**
+
+- One consistent page structure across auth, student, company, and admin areas.
+- Clear empty states for every list page.
+- Confirmation UI for destructive actions.
+- Success feedback after create, update, archive, delete, apply, and status-change actions.
+- Disabled submit buttons during pending requests to prevent double submissions.
+- Keyboard-visible focus states and usable tab order.
+- Responsive navigation that works on mobile without hiding important actions.
+- Consistent status and role badges instead of raw status strings where users scan lists.
+
+**Backend design must finish with:**
+
+- Database constraints that match business rules, not only frontend validation.
+- Ownership checks on every user-owned resource.
+- Private CV access through authorized endpoints, not public guessable file URLs.
+- Transactions around multi-write actions such as application creation and internship skill syncing.
+- Consistent JSON error and resource shapes.
+- No route that lets a user mutate another user's records by changing an ID.
+- Feature tests for the final hardening cases.
+
+### Exact Files To Create Or Update In This Slice
+
+Create or complete these shared frontend components:
+
+```text
+resources/js/components/common/EmptyState.jsx
+resources/js/components/common/ConfirmDialog.jsx
+resources/js/components/common/ToastProvider.jsx
+resources/js/components/common/StatusBadge.jsx
+```
+
+Review and update these frontend files:
+
+```text
+resources/js/api/axios.js
+resources/js/components/layouts/DefaultLayout.jsx
+resources/js/components/layouts/GuestLayout.jsx
+resources/js/components/common/ErrorAlert.jsx
+resources/js/components/common/LoadingSpinner.jsx
+resources/js/pages/auth/Login.jsx
+resources/js/pages/auth/Register.jsx
+resources/js/pages/internships/Browse.jsx
+resources/js/pages/internships/Detail.jsx
+resources/js/pages/student/Profile.jsx
+resources/js/pages/student/Applications.jsx
+resources/js/pages/student/Recommendations.jsx
+resources/js/pages/company/InternshipCreate.jsx
+resources/js/pages/company/InternshipEdit.jsx
+resources/js/pages/company/Applications.jsx
+resources/js/pages/company/Profile.jsx
+resources/js/router/index.jsx
+resources/css/app.css
+```
+
+Review and update these backend files:
+
+```text
+routes/api.php
+app/Http/Controllers/Api/V1/AuthController.php
+app/Http/Controllers/Api/V1/InternshipController.php
+app/Http/Requests/Internships/StoreInternshipRequest.php
+app/Http/Requests/Internships/UpdateInternshipsRequest.php
+app/Http/Resources/UserResource.php
+app/Http/Resources/InternshipResource.php
+app/Http/Resources/InternshipCollection.php
+app/Policies/InternshipPolicy.php
+app/Services/InternshipService.php
+database/migrations/
+tests/Feature/
+```
+
+If the later slices add CV download, applications, student profiles, match scores, or admin controllers, include these files in the same hardening pass:
+
+```text
+app/Http/Controllers/Api/V1/ApplicationController.php
+app/Http/Controllers/Api/V1/StudentProfileController.php
+app/Http/Controllers/Api/V1/MatchController.php
+app/Http/Controllers/Api/V1/AdminUserController.php
+app/Policies/ApplicationPolicy.php
+app/Services/ApplicationService.php
+app/Services/StudentProfileService.php
+tests/Feature/FinalHardeningTest.php
+tests/Feature/CvAuthorizationTest.php
+tests/Feature/ApplicationIntegrityTest.php
+```
+
+### Backend Walkthrough
+
+#### Step 1 - Add final integrity constraints
+
+**Goal:** Move core business rules into the database where possible.
+
+**Why we do this:** Validation and service logic can be bypassed by future code. Database constraints protect the data even if a controller changes later.
+
+**What this does:** Adds unique indexes and helpful foreign-key indexes for records that must not be duplicated.
+
+**Do this:** Create a final migration such as:
+
+```bash
+php artisan make:migration add_final_integrity_constraints
+```
+
+Add constraints that match the tables that exist by this point:
+
+```php
+Schema::table('company_profiles', function (Blueprint $table) {
+    $table->unique('user_id');
+});
+
+Schema::table('skills', function (Blueprint $table) {
+    $table->unique('name');
+});
+
+Schema::table('internship_skill', function (Blueprint $table) {
+    $table->unique(['internship_id', 'skill_id']);
+});
+```
+
+If Slice 5 has added applications, also add:
+
+```php
+Schema::table('applications', function (Blueprint $table) {
+    $table->unique(['student_profile_id', 'internship_id']);
+    $table->index(['internship_id', 'status']);
+    $table->index(['student_profile_id', 'status']);
+});
+```
+
+**Check:** Running the same application request twice returns a controlled `422` or `409`, not duplicate rows or a database exception page.
+
+#### Step 2 - Wrap multi-write operations in transactions
+
+**Goal:** Avoid half-saved records when an action writes multiple tables.
+
+**Why we do this:** Creating an internship and syncing skills, or applying and calculating a score, should either fully succeed or fully fail.
+
+**What this does:** Services use `DB::transaction(...)` around related writes.
+
+**Do this:** In `app/Services/InternshipService.php`, use this shape for create/update actions:
+
+```php
+use Illuminate\Support\Facades\DB;
+
+public function create(User $user, array $data): Internship
+{
+    return DB::transaction(function () use ($user, $data) {
+        $skillIds = $data['skills'] ?? [];
+        unset($data['skills']);
+
+        $internship = $user->companyProfile->internships()->create($data);
+        $internship->skills()->sync($skillIds);
+
+        return $internship->fresh(['company', 'skills']);
+    });
+}
+```
+
+**Check:** If skill syncing fails, the internship record is not left behind without skills.
+
+#### Step 3 - Audit ownership boundaries
+
+**Goal:** Ensure route parameters cannot be used to access or mutate another user's data.
+
+**Why we do this:** Role checks answer "is this user a company?" They do not answer "does this company own this internship?"
+
+**What this does:** Policies and controller checks enforce ownership on every detail, update, archive, delete, application status, and CV download action.
+
+**Do this:** Add feature tests with these cases:
+
+```php
+public function test_company_cannot_update_another_company_internship(): void {}
+public function test_company_cannot_view_another_company_applicants(): void {}
+public function test_student_cannot_view_another_student_application_detail(): void {}
+public function test_admin_cannot_delete_their_own_account(): void {}
+```
+
+**Check:** Each forbidden request returns `403`.
+
+#### Step 4 - Make CV files private by default
+
+**Goal:** Keep student CVs visible only to the student, the owning internship company after application, and admins.
+
+**Why we do this:** CVs contain personal information. A public storage URL is convenient but too open for this use case.
+
+**What this does:** CV upload stores files on a private disk or private path, then download routes stream files after authorization.
+
+**Do this:** Add or adjust a route like:
+
+```php
+Route::middleware('auth:sanctum')->get('/student/cv/{studentProfile}', [StudentProfileController::class, 'downloadCv']);
+```
+
+In the controller:
+
+```php
+public function downloadCv(Request $request, StudentProfile $studentProfile): StreamedResponse
+{
+    $this->authorize('downloadCv', $studentProfile);
+
+    abort_unless($studentProfile->cv_path, 404);
+
+    return Storage::disk('local')->download($studentProfile->cv_path);
+}
+```
+
+**Check:** A random logged-in student cannot download another student's CV.
+
+#### Step 5 - Normalize API response and error shapes
+
+**Goal:** Make frontend error handling simple and predictable.
+
+**Why we do this:** Inconsistent responses force every React page to guess where data or messages live.
+
+**What this does:** Resources return `data`; collections include pagination metadata; errors include a clear `message`; validation errors stay in Laravel's `errors` object.
+
+**Do this:** Review every controller response and prefer these shapes:
+
+```php
+return new InternshipResource($internship);
+```
+
+```php
+return response()->json([
+    'message' => 'Internship archived successfully.',
+    'data' => new InternshipResource($internship),
+]);
+```
+
+```php
+abort_if($internship->status !== InternshipStatus::OPEN, 422, 'This internship is not open for applications.');
+```
+
+**Check:** React can read success messages from `response.data.message` and resource data from `response.data.data`.
+
+#### Step 6 - Re-check lifecycle rules
+
+**Goal:** Catch business-rule holes created by earlier slices.
+
+**Why we do this:** Each vertical slice may be correct alone while cross-feature workflows still have gaps.
+
+**What this does:** Verifies lifecycle rules across internships, applications, match score, and admin actions.
+
+**Do this:** Confirm these rules exist in requests, services, or policies:
+
+- Students cannot apply to archived, closed, soft-deleted, or past-deadline internships.
+- Companies cannot apply to internships.
+- Companies cannot change application statuses for internships they do not own.
+- Archived internships do not appear in Browse, student recommendations, or new application flows.
+- Deleting a user does not leave visible orphan records.
+- Admin deletion cannot remove the last admin account.
+
+**Check:** Each rule has at least one feature test.
+
+### Frontend Walkthrough
+
+#### Step 1 - Add shared empty states
+
+**Goal:** Make no-data screens feel intentional.
+
+**Why we do this:** Empty tables and blank pages feel broken, even when the API is correct.
+
+**What this does:** A reusable `EmptyState` gives every list page a title, short copy, and optional action.
+
+**Do this:** Create `resources/js/components/common/EmptyState.jsx`:
+
+```jsx
+export default function EmptyState({ title, message, action }) {
+    return (
+        <div className="empty-state">
+            <h2 className="empty-state-title">{title}</h2>
+            <p className="empty-state-copy">{message}</p>
+            {action ? <div className="empty-state-action">{action}</div> : null}
+        </div>
+    );
+}
+```
+
+**Check:** Browse, applications, applicants, archived internships, recommendations, and admin tables never render a blank area when empty.
+
+#### Step 2 - Add confirmation for destructive actions
+
+**Goal:** Prevent accidental archive, delete, and admin-remove actions.
+
+**Why we do this:** Destructive actions should be reversible or confirmed.
+
+**What this does:** A reusable `ConfirmDialog` wraps archive/delete flows.
+
+**Do this:** Create `resources/js/components/common/ConfirmDialog.jsx`:
+
+```jsx
+export default function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', onConfirm, onCancel }) {
+    if (!open) {
+        return null;
+    }
+
+    return (
+        <div className="modal-backdrop" role="presentation">
+            <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+                <h2 id="confirm-title" className="modal-title">{title}</h2>
+                <p>{message}</p>
+                <div className="form-actions">
+                    <button type="button" className="btn btn-danger" onClick={onConfirm}>{confirmLabel}</button>
+                    <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>
+                </div>
+            </section>
+        </div>
+    );
+}
+```
+
+**Check:** Archive/delete buttons do not call the API until the user confirms.
+
+#### Step 3 - Add global success feedback
+
+**Goal:** Confirm that user actions worked without forcing a page refresh.
+
+**Why we do this:** Users need immediate feedback after saving, applying, archiving, or changing a status.
+
+**What this does:** A toast or page-level success alert displays short messages from successful responses.
+
+**Do this:** Create a simple `ToastProvider` or reuse page-level state:
+
+```jsx
+const [success, setSuccess] = useState(null);
+
+setSuccess(response.data.message ?? 'Saved successfully.');
+```
+
+Render:
+
+```jsx
+{success && <div className="alert alert-success">{success}</div>}
+```
+
+**Check:** Each mutation flow shows success, disables duplicate submits while pending, and leaves the screen in the updated state.
+
+#### Step 4 - Tighten navigation and role-aware menus
+
+**Goal:** Make each role see the right next actions.
+
+**Why we do this:** Working routes still feel messy if navigation exposes irrelevant pages.
+
+**What this does:** Sidebar/topbar links change by role and active states are visible.
+
+**Do this:** Update `DefaultLayout.jsx` so nav sections are role-aware:
+
+```jsx
+const companyLinks = [
+    { to: '/company/dashboard', label: 'Dashboard' },
+    { to: '/company/internships', label: 'My Internships', end: true },
+    { to: '/company/internships/archived', label: 'Archived Internships' },
+    { to: '/company/profile', label: 'Profile' },
+    { to: '/company/applications', label: 'Applications' },
+];
+
+const studentLinks = [
+    { to: '/student/dashboard', label: 'Dashboard' },
+    { to: '/internships', label: 'Browse Internships' },
+    { to: '/profile', label: 'Profile' },
+    { to: '/applications', label: 'My Applications' },
+];
+
+const adminLinks = [
+    { to: '/admin/dashboard', label: 'Dashboard' },
+    { to: '/admin/companies', label: 'Manage Companies' },
+    { to: '/admin/internships', label: 'Manage Internships' },
+    { to: '/admin/users', label: 'Manage Users' },
+];
+```
+
+**Check:** Students do not see company/admin links, companies do not see student-only links, and admins can reach admin pages directly.
+
+Also audit `resources/js/router/index.jsx` so every visible sidebar link has a matching route. With the current navigation, the company group should include:
+
+```jsx
+import CompanyApplications from '../pages/company/Applications';
+import CompanyProfile from '../pages/company/Profile';
+
+{
+    element: <RoleRoute allowedRoles={['company']} />,
+    children: [
+        { path: '/company/dashboard', element: <Dashboard /> },
+        { path: '/company/internships', element: <Internships /> },
+        { path: '/company/internships/create', element: <InternshipCreate /> },
+        { path: '/company/internships/:id/edit', element: <InternshipEdit /> },
+        { path: '/company/internships/archived', element: <ArchivedInternships /> },
+        { path: '/company/profile', element: <CompanyProfile /> },
+        { path: '/company/applications', element: <CompanyApplications /> },
+    ],
+},
+```
+
+If the admin sidebar keeps `/admin/companies`, `/admin/internships`, and `/admin/users`, add matching guarded pages/routes for them in Slice 8 or hide those links until the pages exist. Do not leave visible nav links that route to missing pages.
+
+#### Step 5 - Add status and role badges
+
+**Goal:** Make statuses scannable in cards and tables.
+
+**Why we do this:** Raw words like `pending` and `archived` are easy to miss in dense UI.
+
+**What this does:** `StatusBadge` maps known statuses and roles to consistent labels and classes.
+
+**Do this:** Create `resources/js/components/common/StatusBadge.jsx`:
+
+```jsx
+const labels = {
+    open: 'Open',
+    archived: 'Archived',
+    pending: 'Pending',
+    reviewed: 'Reviewed',
+    accepted: 'Accepted',
+    rejected: 'Rejected',
+    student: 'Student',
+    company: 'Company',
+    admin: 'Admin',
+};
+
+export default function StatusBadge({ value }) {
+    const normalized = String(value ?? '').toLowerCase();
+
+    return (
+        <span className={`status-badge status-badge-${normalized}`}>
+            {labels[normalized] ?? value}
+        </span>
+    );
+}
+```
+
+**Check:** Internship, application, applicant, user, and admin tables use badges for status/role columns.
+
+#### Step 6 - Polish forms and request pending states
+
+**Goal:** Make every form feel predictable under slow network conditions.
+
+**Why we do this:** Double-clicking submit should not create duplicate records or confusing UI.
+
+**What this does:** Submit buttons show pending labels and are disabled while requests are in flight.
+
+**Do this:** Use this shape in forms:
+
+```jsx
+<button type="submit" className="btn btn-primary" disabled={submitting}>
+    {submitting ? 'Saving...' : 'Save'}
+</button>
+```
+
+**Check:** Login, register, internship create/edit, profile save, CV upload, apply, and status update flows disable repeated submissions.
+
+#### Step 7 - Accessibility and responsive final pass
+
+**Goal:** Catch visual polish issues that tests will not catch.
+
+**Why we do this:** The submission should look intentional on real screens, not only pass builds.
+
+**What this does:** Verifies labels, focus states, button text, table scrolling, mobile nav, and text wrapping.
+
+**Do this:** Add or confirm these CSS rules in `resources/css/app.css`:
+
+```css
+.btn:focus-visible,
+.form-input:focus-visible,
+.form-select:focus-visible,
+.form-textarea:focus-visible,
+.sidebar-link:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 2px;
+}
+
+.empty-state {
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    background: #f8fafc;
+}
+
+.empty-state-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.empty-state-copy {
+    margin: 0.5rem auto 0;
+    max-width: 42rem;
+    color: #64748b;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.alert-success {
+    border: 1px solid #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+}
+```
+
+**Check:** Tab navigation is visible, long text wraps, and no table or form breaks the mobile viewport.
+
+### Verification Checklist
+
+Run the full verification set after Slice 10 changes:
+
+```bash
+php artisan migrate:fresh --seed
+php artisan test
+npm run lint
+npm run build
+```
+
+Manual QA:
+
+- [ ] Register/login/logout still works.
+- [ ] Each role lands on the correct dashboard and sees only relevant navigation.
+- [ ] Browse hides archived/closed internships.
+- [ ] Student apply flow prevents duplicates and closed internships.
+- [ ] Company archive/delete/status actions require confirmation.
+- [ ] Student CV cannot be downloaded by unrelated users.
+- [ ] Admin cannot delete themselves or the last admin.
+- [ ] All list pages have loading, error, empty, and populated states.
+- [ ] Mobile width has no horizontal page overflow except inside intentional table scroll areas.
+
+### Exit Criteria
+
+- Slice 9 tests and documentation still pass.
+- Slice 10 hardening tests pass.
+- UI has no blank list pages, unconfirmed destructive actions, or duplicate-submit paths.
+- Backend has database constraints, transaction boundaries, and ownership tests for the risky flows.
+- The app is ready for demo/submission without needing explanatory excuses for rough edges.
 
 ---
 
@@ -8339,6 +9049,53 @@ export function me() {
 
 **Why it looks like this:** The Axios instance already has `baseURL: '/api/v1'`, so `api.post('/login')` means `POST /api/v1/login`.
 
+#### `resources/js/components/common/IndexRedirect.jsx`
+
+```jsx
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+
+export default function IndexRedirect() {
+    const { role, isAuthenticated, loading } = useAuth();
+
+    if (loading) {
+        return <div>Loading...</div>;
+    }
+
+    if (!isAuthenticated || !role) {
+        return <Navigate to="/login" replace />;
+    }
+
+    switch (role) {
+        case 'company':
+            return <Navigate to="/company/dashboard" replace />;
+        case 'student':
+            return <Navigate to="/student/dashboard" replace />;
+        case 'admin':
+            return <Navigate to="/admin/dashboard" replace />;
+        default:
+            return <Navigate to="/login" replace />;
+    }
+}
+```
+
+#### `resources/js/components/common/GuestOnlyRoute.jsx`
+
+```jsx
+import { Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+
+export default function GuestOnlyRoute() {
+    const { isAuthenticated, loading } = useAuth();
+
+    if (loading) {
+        return <div>Loading...</div>;
+    }
+
+    return !isAuthenticated ? <Outlet /> : <Navigate to="/" replace />;
+}
+```
+
 #### `resources/js/components/common/ProtectedRoute.jsx`
 
 **Exports you need:** default component or named component. Pick one style and stay consistent.
@@ -8392,47 +9149,62 @@ export default function RoleRoute({ allowedRoles }) {
 
 ```jsx
 import { createBrowserRouter } from 'react-router-dom';
-import App from '../App';
+import DefaultLayout from '../components/layouts/DefaultLayout';
+import GuestLayout from '../components/layouts/GuestLayout';
+import IndexRedirect from '../components/common/IndexRedirect';
+import GuestOnlyRoute from '../components/common/GuestOnlyRoute';
 import ProtectedRoute from '../components/common/ProtectedRoute';
 import RoleRoute from '../components/common/RoleRoute';
 import Login from '../pages/auth/Login';
 import Register from '../pages/auth/Register';
+import Dashboard from '../pages/Dashboard';
+import Forbidden from '../pages/errors/Forbidden';
+import Browse from '../pages/internships/Browse';
+import Detail from '../pages/internships/Detail';
 
-export const router = createBrowserRouter([
+const router = createBrowserRouter([
     {
         path: '/',
-        element: <App />,
+        element: <IndexRedirect />,
     },
     {
-        path: '/login',
-        element: <Login />,
-    },
-    {
-        path: '/register',
-        element: <Register />,
+        element: <GuestOnlyRoute />,
+        children: [
+            {
+                element: <GuestLayout />,
+                children: [
+                    { path: '/login', element: <Login /> },
+                    { path: '/register', element: <Register /> },
+                ],
+            },
+        ],
     },
     {
         element: <ProtectedRoute />,
         children: [
             {
-                path: '/dashboard',
-                element: <div>Dashboard</div>,
-            },
-            {
-                element: <RoleRoute allowedRoles={['company']} />,
+                element: <DefaultLayout />,
                 children: [
                     {
-                        path: '/company/dashboard',
-                        element: <div>Company dashboard</div>,
+                        element: <RoleRoute allowedRoles={['company']} />,
+                        children: [
+                            { path: '/company/dashboard', element: <Dashboard /> },
+                        ],
                     },
+                    { path: '/student/dashboard', element: <Dashboard /> },
+                    { path: '/internships', element: <Browse /> },
+                    { path: '/internships/:id', element: <Detail /> },
+                    { path: '/403', element: <Forbidden /> },
                 ],
             },
         ],
     },
 ]);
+
+export default router;
 ```
 
-**What to export:** Export `router`, then import it in `main.jsx`.
+**What to export:** Default-export `router`, then import it in `main.jsx`.
 
 #### `resources/js/main.jsx`
 
@@ -8440,9 +9212,9 @@ export const router = createBrowserRouter([
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import { router } from './router';
 import '../css/app.css';
+import { AuthProvider } from './contexts/AuthContext.jsx';
+import router from './router/index.jsx';
 
 createRoot(document.getElementById('root')).render(
     <React.StrictMode>
@@ -8455,19 +9227,31 @@ createRoot(document.getElementById('root')).render(
 
 #### Backend auth response shape
 
-Keep register and login responses consistent:
+Register returns the created user but does not log them in automatically:
 
 ```php
 return response()->json([
-    'token' => $token,
+    'message' => 'User registered successfully',
     'user' => new UserResource($user),
-]);
+], 201);
+```
+
+Login returns the token used by `AuthContext`:
+
+```php
+return response()->json([
+    'message' => 'User logged in successfully',
+    'user' => new UserResource($user),
+    'token' => $token,
+], 200);
 ```
 
 For `me`, return:
 
 ```php
-return new UserResource($request->user());
+return response()->json([
+    'user' => new UserResource($request->user()),
+]);
 ```
 
 ### Slice 2 - Browse Internships Contracts
@@ -8601,7 +9385,7 @@ public function destroy(Internship $internship, InternshipService $service) {}
 
 ```js
 export function create(payload) {
-    return api.post('/internships', payload);
+    return api.post('/company/internships', payload);
 }
 
 export function update(id, payload) {
@@ -9011,19 +9795,109 @@ try {
 
 Frontend route guards are for user experience. Backend guards are for real security.
 
+### Slice 10 - Final Product Polish + Design Hardening Contracts
+
+Use these contracts after Slice 9 passes and before demo/submission.
+
+#### Shared polish components
+
+Create or complete:
+
+```text
+resources/js/components/common/EmptyState.jsx
+resources/js/components/common/ConfirmDialog.jsx
+resources/js/components/common/ToastProvider.jsx
+resources/js/components/common/StatusBadge.jsx
+```
+
+Expected component props:
+
+```jsx
+<EmptyState title="No applications yet" message="Applied internships will appear here." action={optionalButton} />
+<ConfirmDialog open={open} title="Archive internship?" message="Applicants will no longer be able to apply." onConfirm={archive} onCancel={close} />
+<StatusBadge value={application.status} />
+```
+
+#### Backend hardening checks
+
+Every risky flow should have a feature test:
+
+```php
+public function test_company_cannot_update_another_company_internship(): void {}
+public function test_student_cannot_apply_twice_to_the_same_internship(): void {}
+public function test_student_cannot_apply_to_archived_internship(): void {}
+public function test_unrelated_user_cannot_download_student_cv(): void {}
+public function test_admin_cannot_delete_their_own_account(): void {}
+```
+
+Minimum database constraints to verify:
+
+```text
+company_profiles.user_id unique
+skills.name unique
+internship_skill(internship_id, skill_id) unique
+applications(student_profile_id, internship_id) unique
+```
+
+#### Transaction rule
+
+Any operation that writes a main record and related rows should use a service-level transaction:
+
+```php
+return DB::transaction(function () use ($data) {
+    // create or update the main record
+    // sync related rows
+    // return a fresh resource-ready model
+});
+```
+
+#### Final UX rule
+
+Every mutation flow must include all four states:
+
+```jsx
+const [submitting, setSubmitting] = useState(false);
+const [success, setSuccess] = useState(null);
+const [error, setError] = useState(null);
+const [errors, setErrors] = useState({});
+```
+
+Render disabled buttons while pending:
+
+```jsx
+<button type="submit" className="btn btn-primary" disabled={submitting}>
+    {submitting ? 'Saving...' : 'Save'}
+</button>
+```
+
+Render success feedback after the API call:
+
+```jsx
+{success && <div className="alert alert-success">{success}</div>}
+```
+
+#### Final verification commands
+
+```bash
+php artisan migrate:fresh --seed
+php artisan test
+npm run lint
+npm run build
+```
+
 ---
 
 ## Rubric Alignment Cheat Sheet
 
 | Rubric Area | Weight | Where it's earned |
 |---|---|---|
-| Laravel Architecture & Best Practices | 30% | Slices 1-8: services, enums, policies, resources, form requests |
+| Laravel Architecture & Best Practices | 30% | Slices 1-8 and 10: services, enums, policies, resources, form requests, transactions, data constraints |
 | Advanced PHP & OOP | 10% | Enums, services, typed methods, resources, policies |
-| API Design & RESTful Standards | 15% | Versioned `/api/v1` prefix, proper HTTP verbs + status codes, Sanctum tokens, Resources |
-| Database Design | 10% | Slice 2, 4, 5: normalized schema, FKs, indexes, pivot tables, soft deletes |
-| Security | 10% | Slices 1, 3, 5: Sanctum + RoleMiddleware + Policies + Form Requests validation |
-| Frontend Integration & UI/UX | 20% | All frontend tasks + Slice 9 polish |
-| Documentation & Deployment | 5% | Slice 9 |
+| API Design & RESTful Standards | 15% | Versioned `/api/v1` prefix, proper HTTP verbs + status codes, Sanctum tokens, Resources, consistent response shapes |
+| Database Design | 10% | Slices 2, 4, 5, and 10: normalized schema, FKs, indexes, unique constraints, pivot tables, soft deletes |
+| Security | 10% | Slices 1, 3, 5, and 10: Sanctum + RoleMiddleware + Policies + Form Requests validation + ownership tests |
+| Frontend Integration & UI/UX | 20% | All frontend tasks + Slices 9-10 polish |
+| Documentation & Deployment | 5% | Slice 9, with Slice 10 confirming docs still match the final app |
 
 ---
 

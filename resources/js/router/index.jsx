@@ -4,19 +4,26 @@ import GuestLayout from "../components/layouts/GuestLayout";
 import IndexRedirect from "../components/common/IndexRedirect";
 import GuestOnlyRoute from "../components/common/GuestOnlyRoute";
 import ProtectedRoute from "../components/common/ProtectedRoute";
+import RoleRoute from "../components/common/RoleRoute";
 import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
 import Dashboard from "../pages/Dashboard";
 import Forbidden from "../pages/errors/Forbidden";
 import Browse from "../pages/internships/Browse";
 import Detail from "../pages/internships/Detail";
+import Internships from "../pages/company/Internships";
+import InternshipCreate from "../pages/company/InternshipCreate";
+import InternshipEdit from "../pages/company/InternshipEdit";
+import ArchivedInternships from "../pages/company/ArchivedInternships";
 
 const router = createBrowserRouter([
     {
+        // Redirect root to dashboard
         path : "/",
         element: <IndexRedirect />
     },
     {
+        // Signup/Login routes
         element: <GuestOnlyRoute />,
         children: [
             {
@@ -40,8 +47,35 @@ const router = createBrowserRouter([
             {
                 element: <DefaultLayout />,
                 children: [
+                    // Company routes
                     {
-                        path: "/dashboard",
+                        element: <RoleRoute allowedRoles={['company']} />,
+                        children: [
+                            {
+                                path: "/company/dashboard",
+                                element: <Dashboard />
+                            },
+                            {
+                                path: "/company/internships",
+                                element: <Internships />
+                            },
+                            {
+                                path: '/company/internships/create',
+                                element: <InternshipCreate />
+                            },
+                            {
+                                path: '/company/internships/:id/edit',
+                                element: <InternshipEdit />
+                            },
+                            {
+                                path: '/company/internships/archived',
+                                element: <ArchivedInternships />
+                            }
+                        ]
+                    },
+                    // General/Student Routes
+                    {
+                        path: "/student/dashboard",
                         element: <Dashboard />
                     },
                     {
@@ -55,7 +89,7 @@ const router = createBrowserRouter([
                     {
                         path: "/403",
                         element: <Forbidden />
-                    }
+                    },
                 ]
             }
         ]

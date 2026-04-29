@@ -7,6 +7,8 @@ use Illuminate\Http\Resources\Json\ResourceCollection;
 
 class InternshipCollection extends ResourceCollection
 {
+    public $collects = InternshipResource::class;
+
     /**
      * Transform the resource collection into an array.
      *
@@ -14,9 +16,7 @@ class InternshipCollection extends ResourceCollection
      */
     public function toArray(Request $request): array
     {
-        return [
-            'data' => InternshipResource::collection($this->collection),
-        ];
+        return parent::toArray($request);
     }
 
     public function paginationInformation($request, $paginated, $default): array

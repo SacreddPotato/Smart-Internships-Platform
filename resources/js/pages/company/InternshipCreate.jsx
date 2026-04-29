@@ -1,18 +1,18 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import * as internshipApi from "../../api/internships";
-import * as skilLApi from "../../api/skills";
+import * as internshipApi from "../../api/internshipApi";
+import * as skillApi from "../../api/skillApi";
 import InternshipForm from "../../components/common/internships/InternshipForm";
 
 
-export default function InternshipCreat() {
+export default function InternshipCreate() {
     const navigate = useNavigate();
     const [skills, setSkills] = useState([]);
     const [errors, setErrors] = useState({});
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
-        skilLApi.fetchAll().then((response) => setSkills(response.data.data));
+        skillApi.fetchAll().then((response) => setSkills(response.data.data));
     }, []);
 
     async function handleSubmit(values) {

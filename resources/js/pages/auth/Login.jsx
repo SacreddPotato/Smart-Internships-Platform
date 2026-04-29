@@ -27,7 +27,7 @@ export default function Login() {
 
         try {
             await login(form);
-            navigate('/dashboard');
+            navigate('/');
         } catch (error) {
             if (error.response?.status === 422) {
                 setErrors(error.response.data.errors);

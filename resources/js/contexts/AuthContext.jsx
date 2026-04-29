@@ -80,6 +80,7 @@ export function AuthProvider({ children }) {
     const value = useMemo(
         () => ({
             user,
+            role: user?.role ?? null,
             token,
             loading,
             error,
