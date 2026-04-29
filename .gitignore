@@ -31,5 +31,4 @@ auth.json
 
 # VsCode
 .vscode/
-package-lock.json
 yarn.lock
