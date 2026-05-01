@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\InternshipController;
 use App\Http\Controllers\Api\V1\SkillController;
+use App\Http\Controllers\Api\V1\StudentProfileController;
+use App\Http\Controllers\Api\V1\StudentSkillController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -38,5 +40,12 @@ Route::prefix('v1')->group(function() {
         Route::put('/internships/{internship}', [InternshipController::class, 'update']);
         Route::patch('/internships/{internship}/archive', [InternshipController::class, 'archive']);
         Route::delete('/internships/{internship}', [InternshipController::class, 'destroy']);
+    });
+
+    Route::middleware(['auth:sanctum', 'role:student'])->group(function() {
+        Route::get('/student/profile', [StudentProfileController::class, 'show']);
+        Route::put('/student/profile', [StudentProfileController::class, 'update']);
+        Route::post('/student/profile/cv', [StudentProfileController::class, 'uploadCv']);
+        Route::put('/student/skills', [StudentSkillController::class, 'sync']);
     });
 });

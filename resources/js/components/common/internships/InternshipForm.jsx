@@ -97,18 +97,14 @@ export default function InternshipForm({ initialValues, skills = [], onSubmit, s
 
             <fieldset className="form-group">
                 <legend>Skills</legend>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="skill-toggle-list">
                     {skills.map((skill) => (
                         <label
-                            className={`inline-flex cursor-pointer select-none items-center rounded-md border px-3 py-2 text-sm font-medium transition ${
-                                form.skills.includes(skill.id)
-                                    ? 'border-[#24557a] bg-[#dfeaf3] text-[#17476a] shadow-sm'
-                                    : 'border-[#d8d3c7] bg-white text-[#4f5c6d] hover:border-[#b9c8d5] hover:bg-[#f7fafc] hover:text-[#24557a]'
-                            }`}
+                            className={`skill-toggle ${form.skills.includes(skill.id) ? 'skill-toggle-active' : ''}`}
                             key={skill.id}
                         >
                             <input
-                                className="sr-only"
+                                className="skill-toggle-input"
                                 type="checkbox"
                                 checked={form.skills.includes(skill.id)}
                                 onChange={() => toggleSkill(skill.id)}

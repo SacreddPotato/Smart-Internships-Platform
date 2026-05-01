@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\ResourceCollection;
+use Illuminate\Support\Arr;
 
 class InternshipCollection extends ResourceCollection
 {
@@ -22,12 +23,15 @@ class InternshipCollection extends ResourceCollection
     public function paginationInformation($request, $paginated, $default): array
     {
         return [
-            'links' => $default['links'],
+            'links' => Arr::get($default, 'links', []),
             'meta' => [
-                'current_page' => $default['meta']['current_page'],
-                'last_page' => $default['meta']['last_page'],
-                'per_page' => $default['meta']['per_page'],
-                'total' => $default['meta']['total'],
+                'current_page' => Arr::get($paginated, 'current_page'),
+                'from' => Arr::get($paginated, 'from'),
+                'last_page' => Arr::get($paginated, 'last_page'),
+                'path' => Arr::get($paginated, 'path'),
+                'per_page' => Arr::get($paginated, 'per_page'),
+                'to' => Arr::get($paginated, 'to'),
+                'total' => Arr::get($paginated, 'total'),
             ],
         ];
     }

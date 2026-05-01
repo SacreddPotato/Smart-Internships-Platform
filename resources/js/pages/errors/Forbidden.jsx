@@ -12,7 +12,7 @@ export default function Forbidden() {
                 view this page.
             </p>
 
-            <Link to="/dashboard" className="btn btn-primary">
+            <Link to="/" className="btn btn-primary">
                 Back to dashboard
             </Link>
         </div>

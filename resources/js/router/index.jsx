@@ -15,6 +15,7 @@ import Internships from "../pages/company/Internships";
 import InternshipCreate from "../pages/company/InternshipCreate";
 import InternshipEdit from "../pages/company/InternshipEdit";
 import ArchivedInternships from "../pages/company/ArchivedInternships";
+import Profile from "../pages/student/Profile";
 
 const router = createBrowserRouter([
     {
@@ -77,6 +78,10 @@ const router = createBrowserRouter([
                     {
                         path: "/student/dashboard",
                         element: <Dashboard />
+                    },
+                    {
+                        path: "/student/profile",
+                        element: <Profile />
                     },
                     {
                         path: "/internships",
