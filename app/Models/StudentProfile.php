@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['user_id', 'university', 'major', 'gpa', 'graduation_year', 'bio', 'cv_path'])]
 class StudentProfile extends Model
@@ -27,5 +28,9 @@ class StudentProfile extends Model
 
     public function skills(): BelongsToMany {
         return $this->belongsToMany(Skill::class, 'student_skill');
+    }
+
+    public function applications(): HasMany {
+        return $this->hasMany(Application::class);
     }
 }

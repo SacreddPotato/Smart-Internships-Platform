@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
@@ -45,5 +46,9 @@ class Internship extends Model
 
     public function skills(): BelongsToMany {
         return $this->belongsToMany(Skill::class)->withTimestamps();
+    }
+
+    public function applications(): HasMany {
+        return $this->hasMany(Application::class);
     }
 }

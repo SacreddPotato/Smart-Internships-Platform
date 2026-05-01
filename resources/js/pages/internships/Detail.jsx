@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import * as internshipApi from '../../api/internshipApi';
 import ErrorAlert from '../../components/common/ErrorAlert';
 import LoadingSpinner from '../../components/common/LoadingSpinner'
+import ApplyModal from '../../components/modals/applications/ApplyModal';
 
 export default function Detail() {
     const { id } = useParams();
     const [internship, setInternship] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const { user, isAuthenticated } = useAuth();
+    const [applyOpen, setApplyOpen] = useState(false);
+    const [applied, setApplied] = useState(false);
 
     useEffect(() => {
         async function LoadInternship() {
@@ -68,6 +74,23 @@ export default function Detail() {
                 <div className='skills-list flex flex-wrap gap-2'>
                     {(internship.skills ?? []).map((skill) => (<span className='skill-pill' key={skill.id}>{skill.name}</span>))}
                 </div>
+                {isAuthenticated && user.role === 'student' && internship.status === 'open' && (
+                    <button
+                        className='btn btn-primary'
+                        type='button'
+                        disabled={applied}
+                        onClick={() => setApplyOpen(true)}
+                    >
+                        {applied ? 'Applied' : 'Apply Now'}
+                    </button>
+                )}
+
+                <ApplyModal
+                    internship={internship}
+                    open={applyOpen}
+                    onClose={() => setApplyOpen(false)}
+                    onApplied={() => setApplied(true)}
+                />
             </aside>
         </main>
       </div>

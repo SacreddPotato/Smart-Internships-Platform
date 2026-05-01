@@ -13,11 +13,14 @@ class CompanyProfileFactory extends Factory
 
     public function definition(): array
     {
+        $companyName = fake()->company();
+
         return [
             'user_id' => User::factory()->state([
                 'role' => UserRole::COMPANY,
+                'name' => $companyName,
             ]),
-            'company_name' => fake()->company(),
+            'company_name' => $companyName,
             'industry' => fake()->randomElement(['Technology', 'Finance', 'Education', 'Healthcare']),
             'website' => fake()->url(),
             'description' => fake()->paragraph(),

@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             SkillSeeder::class,
             StudentProfileSeeder::class,
             InternshipSeeder::class,
+            ApplicationSeeder::class,
         ]);
     }
 }

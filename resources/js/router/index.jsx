@@ -16,12 +16,13 @@ import InternshipCreate from "../pages/company/InternshipCreate";
 import InternshipEdit from "../pages/company/InternshipEdit";
 import ArchivedInternships from "../pages/company/ArchivedInternships";
 import Profile from "../pages/student/Profile";
+import Applications from "../pages/student/Applications";
 
 const router = createBrowserRouter([
     {
         // Redirect root to dashboard
-        path : "/",
-        element: <IndexRedirect />
+        path: "/",
+        element: <IndexRedirect />,
     },
     {
         // Signup/Login routes
@@ -32,15 +33,15 @@ const router = createBrowserRouter([
                 children: [
                     {
                         path: "/login",
-                        element: <Login />
+                        element: <Login />,
                     },
                     {
                         path: "/register",
-                        element: <Register />
-                    }
-                ]
-            }
-        ]
+                        element: <Register />,
+                    },
+                ],
+            },
+        ],
     },
     {
         element: <ProtectedRoute />,
@@ -50,55 +51,66 @@ const router = createBrowserRouter([
                 children: [
                     // Company routes
                     {
-                        element: <RoleRoute allowedRoles={['company']} />,
+                        element: <RoleRoute allowedRoles={["company"]} />,
+                        path: "/company",
                         children: [
                             {
-                                path: "/company/dashboard",
-                                element: <Dashboard />
+                                path: "dashboard",
+                                element: <Dashboard />,
                             },
                             {
-                                path: "/company/internships",
-                                element: <Internships />
+                                path: "internships",
+                                element: <Internships />,
                             },
                             {
-                                path: '/company/internships/create',
-                                element: <InternshipCreate />
+                                path: "internships/create",
+                                element: <InternshipCreate />,
                             },
                             {
-                                path: '/company/internships/:id/edit',
-                                element: <InternshipEdit />
+                                path: "internships/:id/edit",
+                                element: <InternshipEdit />,
                             },
                             {
-                                path: '/company/internships/archived',
-                                element: <ArchivedInternships />
+                                path: "internships/archived",
+                                element: <ArchivedInternships />,
+                            },
+                        ],
+                    },
+                    //Student Routes
+                    {
+                        element: <RoleRoute allowedRoles={["student"]} />,
+                        children: [
+                            {
+                                path: "/student/dashboard",
+                                element: <Dashboard />,
+                            },
+                            {
+                                path: "/student/profile",
+                                element: <Profile />,
+                            },
+                            {
+                                path: "/internships",
+                                element: <Browse />,
+                            },
+                            {
+                                path: "/internships/:id",
+                                element: <Detail />,
+                            },
+                            {
+                                path: 'student/applications',
+                                element: <Applications />,
                             }
-                        ]
+                        ],
                     },
-                    // General/Student Routes
-                    {
-                        path: "/student/dashboard",
-                        element: <Dashboard />
-                    },
-                    {
-                        path: "/student/profile",
-                        element: <Profile />
-                    },
-                    {
-                        path: "/internships",
-                        element: <Browse />
-                    },
-                    {
-                        path: "/internships/:id",
-                        element: <Detail />
-                    },
+                    // Common routes
                     {
                         path: "/403",
-                        element: <Forbidden />
+                        element: <Forbidden />,
                     },
-                ]
-            }
-        ]
-    }
+                ],
+            },
+        ],
+    },
 ]);
 
 export default router;

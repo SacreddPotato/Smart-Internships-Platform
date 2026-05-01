@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\ApplicationController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\InternshipController;
 use App\Http\Controllers\Api\V1\SkillController;
@@ -31,6 +32,7 @@ Route::prefix('v1')->group(function() {
         Route::get('/me', [AuthController::class, 'me']);
         Route::get('internships', [InternshipController::class, 'index']);
         Route::get('internships/{internship}', [InternshipController::class, 'show']);
+        Route::get('/applications/{application}', [ApplicationController::class, 'show']);
     });
 
     Route::middleware(['auth:sanctum', 'role:company'])->group(function() {
@@ -40,6 +42,7 @@ Route::prefix('v1')->group(function() {
         Route::put('/internships/{internship}', [InternshipController::class, 'update']);
         Route::patch('/internships/{internship}/archive', [InternshipController::class, 'archive']);
         Route::delete('/internships/{internship}', [InternshipController::class, 'destroy']);
+        Route::get('/company/applications', [ApplicationController::class, 'companyIndex']);
     });
 
     Route::middleware(['auth:sanctum', 'role:student'])->group(function() {
@@ -47,5 +50,7 @@ Route::prefix('v1')->group(function() {
         Route::put('/student/profile', [StudentProfileController::class, 'update']);
         Route::post('/student/profile/cv', [StudentProfileController::class, 'uploadCv']);
         Route::put('/student/skills', [StudentSkillController::class, 'sync']);
+        Route::post('/internships/{internship}/applications', [ApplicationController::class, 'store']);
+        Route::get('/student/applications', [ApplicationController::class, 'studentIndex']);
     });
 });
