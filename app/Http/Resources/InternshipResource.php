@@ -27,6 +27,7 @@ class InternshipResource extends JsonResource
             'archived_at' => $this->archived_at?->toISOString(),
             'company' => new CompanyProfileResource($this->whenLoaded('company')),
             'skills' => SkillResource::collection($this->whenLoaded('skills')),
+            'match_score' => $this->when(isset($this->match_score), $this->match_score),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

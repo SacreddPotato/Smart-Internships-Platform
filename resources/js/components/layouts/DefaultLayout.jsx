@@ -31,6 +31,7 @@ export default function DefaultLayout() {
                             <NavLink to="/internships" className={navClass}>Browse Internships</NavLink>
                             <NavLink to='/student/profile' className={navClass}>Profile</NavLink>
                             <NavLink to='/student/applications' className={navClass}>My Applications</NavLink>
+                            <NavLink to='/student/recommendations' className={navClass}>Recommendations</NavLink>
                         </>
                     )}
                     {role === 'admin' && (

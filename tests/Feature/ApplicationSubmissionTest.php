@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Application;
 use App\Models\Internship;
+use App\Models\Skill;
 use App\Models\StudentProfile;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -30,5 +31,28 @@ class ApplicationSubmissionTest extends TestCase
             ->assertJsonPath('message', 'You have already applied to this internship.');
 
         $this->assertDatabaseCount('applications', 1);
+    }
+
+    public function test_application_stores_calculated_match_score_when_student_applies(): void
+    {
+        $profile = StudentProfile::factory()->create(['gpa' => 3.40]);
+        $internship = Internship::factory()->create();
+        $matchedSkill = Skill::factory()->create(['name' => 'Laravel']);
+        $missingSkill = Skill::factory()->create(['name' => 'React']);
+
+        $profile->skills()->attach($matchedSkill);
+        $internship->skills()->attach([$matchedSkill->id, $missingSkill->id]);
+
+        Sanctum::actingAs($profile->user);
+
+        $this->postJson("/api/v1/internships/{$internship->id}/applications")
+            ->assertCreated()
+            ->assertJsonPath('data.match_score', 50);
+
+        $this->assertDatabaseHas('applications', [
+            'student_profile_id' => $profile->id,
+            'internship_id' => $internship->id,
+            'match_score' => 50,
+        ]);
     }
 }

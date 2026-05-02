@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\ApplicationController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\InternshipController;
+use App\Http\Controllers\Api\V1\MatchController;
 use App\Http\Controllers\Api\V1\SkillController;
 use App\Http\Controllers\Api\V1\StudentProfileController;
 use App\Http\Controllers\Api\V1\StudentSkillController;
@@ -52,5 +53,7 @@ Route::prefix('v1')->group(function() {
         Route::put('/student/skills', [StudentSkillController::class, 'sync']);
         Route::post('/internships/{internship}/applications', [ApplicationController::class, 'store']);
         Route::get('/student/applications', [ApplicationController::class, 'studentIndex']);
+        Route::get('/internships/{internship}/match-score', [MatchController::class, 'score']);
+        Route::get('/student/recommendations', [MatchController::class, 'recommendations']);
     });
 });

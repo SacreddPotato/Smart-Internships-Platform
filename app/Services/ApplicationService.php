@@ -26,7 +26,7 @@ class ApplicationService
             'internship_id' => $internship->id,
             'status' => ApplicationStatus::PENDING,
             // 'match_score' can be calculated later based on the student's profile and internship requirements
-            'match_score' => 0,
+            'match_score' => MatchScoreService::calculate($profile, $internship),
             'message' => $data['message'] ?? null,
         ])->load(['studentProfile.user', 'studentProfile.skills', 'internship.company', 'internship.skills']);
    }

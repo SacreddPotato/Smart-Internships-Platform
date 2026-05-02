@@ -17,6 +17,7 @@ import InternshipEdit from "../pages/company/InternshipEdit";
 import ArchivedInternships from "../pages/company/ArchivedInternships";
 import Profile from "../pages/student/Profile";
 import Applications from "../pages/student/Applications";
+import Recommendations from "../pages/student/Recommendations";
 
 const router = createBrowserRouter([
     {
@@ -97,8 +98,12 @@ const router = createBrowserRouter([
                                 element: <Detail />,
                             },
                             {
-                                path: 'student/applications',
+                                path: '/student/applications',
                                 element: <Applications />,
+                            },
+                            {
+                                path: '/student/recommendations',
+                                element: <Recommendations />
                             }
                         ],
                     },

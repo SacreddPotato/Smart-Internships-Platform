@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import * as internshipApi from '../../api/internshipApi';
+import * as matchApi from '../../api/matchApi';
 import ErrorAlert from '../../components/common/ErrorAlert';
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import ApplyModal from '../../components/modals/applications/ApplyModal';
+import MatchScoreBadge from '../../components/match/MatchScoreBadge';
 
 export default function Detail() {
     const { id } = useParams();
     const [internship, setInternship] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
+    const [matchScore, setMatchScore] = useState(null);
     const { user, isAuthenticated } = useAuth();
     const [applyOpen, setApplyOpen] = useState(false);
     const [applied, setApplied] = useState(false);
@@ -24,6 +26,10 @@ export default function Detail() {
             try {
                 const response = await internshipApi.fetchOne(id);
                 setInternship(response.data.data);
+                if (isAuthenticated && user.role == 'student') {
+                    const scoreResponse = await matchApi.fetchScore(id);
+                    setMatchScore(scoreResponse.data.score);
+                }
             } catch {
                 setError('fCould not load internship details.')
             } finally {
@@ -32,6 +38,8 @@ export default function Detail() {
         }
 
         LoadInternship();
+    // No need to refetch if user changes, since match score is only fetched on initial load and won't change without a page refresh. Also, we don't want to refetch if authentication status changes while on the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
     if (loading) {
@@ -52,7 +60,8 @@ export default function Detail() {
             <section className='surface'>
                 <h1 className='page-title'>{internship.title}</h1>
                 <p className='page-subtitle'>{internship.company?.company_name ?? 'Unknown company'}</p>
-                <div className='card-meta'>
+                <div className='card-meta flex flex-wrap flex-row items-center gap-4 mt-2'>
+                    <MatchScoreBadge score={matchScore} />
                     <span>{internship.location}</span>
                     <span>{(internship.type === 'onsite') ? 'On-site' : internship.type.charAt(0).toUpperCase() + internship.type.slice(1)}</span>
                     <span>{internship.status.charAt(0).toUpperCase() + internship.status.slice(1)}</span>
