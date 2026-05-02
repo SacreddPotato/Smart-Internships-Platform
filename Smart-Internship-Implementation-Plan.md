@@ -5911,7 +5911,7 @@ use App\Models\StudentProfile;
 
 class MatchScoreService
 {
-    public function calculate(StudentProfile $studentProfile, Internship $internship): int
+    public static function calculate(StudentProfile $studentProfile, Internship $internship): int
     {
         $studentSkillIds = $studentProfile->skills->pluck('id');
         $internshipSkillIds = $internship->skills->pluck('id');
@@ -5933,11 +5933,6 @@ class MatchScoreService
 Update `app/Services/ApplicationService.php` so applications store the calculated score:
 
 ```php
-public function __construct(
-    private readonly MatchScoreService $matchScoreService,
-) {
-}
-
 public function apply(StudentProfile $studentProfile, Internship $internship, array $data = []): Application
 {
     abort_if($internship->status !== InternshipStatus::OPEN, 422, 'This internship is not open for applications.');
@@ -5949,7 +5944,7 @@ public function apply(StudentProfile $studentProfile, Internship $internship, ar
         'student_profile_id' => $studentProfile->id,
         'internship_id' => $internship->id,
         'status' => ApplicationStatus::PENDING,
-        'match_score' => $this->matchScoreService->calculate($studentProfile, $internship),
+        'match_score' => MatchScoreService::calculate($studentProfile, $internship),
         'message' => $data['message'] ?? null,
     ])->load(['studentProfile.user', 'studentProfile.skills', 'internship.company', 'internship.skills']);
 }
@@ -5971,19 +5966,19 @@ use Illuminate\Http\Request;
 
 class MatchController extends Controller
 {
-    public function score(Request $request, Internship $internship, MatchScoreService $service)
+    public function score(Request $request, Internship $internship)
     {
         $profile = $request->user()->studentProfile()->firstOrCreate([]);
 
         return response()->json([
-            'score' => $service->calculate(
+            'score' => MatchScoreService::calculate(
                 $profile->load('skills'),
                 $internship->load('skills')
             ),
         ]);
     }
 
-    public function recommendations(Request $request, MatchScoreService $service)
+    public function recommendations(Request $request)
     {
         $profile = $request->user()->studentProfile()->firstOrCreate([])->load('skills');
 
@@ -5992,8 +5987,8 @@ class MatchController extends Controller
             ->where('status', InternshipStatus::OPEN->value)
             ->latest()
             ->get()
-            ->map(function (Internship $internship) use ($profile, $service) {
-                $internship->match_score = $service->calculate($profile, $internship);
+            ->map(function (Internship $internship) use ($profile) {
+                $internship->match_score = MatchScoreService::calculate($profile, $internship);
 
                 return $internship;
             })
@@ -6018,9 +6013,9 @@ Update `app/Http/Resources/InternshipResource.php` so recommendation rows can in
 
 **Goal:** Put scoring logic in one testable class.
 
-**Why we do this:** Match scoring is business logic, not controller logic. It should be easy to test without making HTTP requests.
+**Why we do this:** Match scoring is business logic, not controller logic. In this plan it is also stateless helper logic, so a static method keeps the call sites simple while still being easy to test without making HTTP requests.
 
-**What this does:** `calculate(StudentProfile $studentProfile, Internship $internship): int` returns a score from 0 to 100.
+**What this does:** `MatchScoreService::calculate(StudentProfile $studentProfile, Internship $internship): int` returns a score from 0 to 100.
 
 **Do this:** Create `app/Services/MatchScoreService.php`.
 
@@ -9596,7 +9591,7 @@ const [error, setError] = useState(null);
 `MatchScoreService` should have one main public method:
 
 ```php
-public function calculate(StudentProfile $studentProfile, Internship $internship): int
+public static function calculate(StudentProfile $studentProfile, Internship $internship): int
 {
     // return 0-100
 }
