@@ -5913,8 +5913,8 @@ class MatchScoreService
 {
     public static function calculate(StudentProfile $studentProfile, Internship $internship): int
     {
-        $studentSkillIds = $studentProfile->skills->pluck('id');
-        $internshipSkillIds = $internship->skills->pluck('id');
+        $studentSkillIds = $studentProfile->skills->pluck('skills.id');
+        $internshipSkillIds = $internship->skills->pluck('skills.id');
 
         if ($internshipSkillIds->isEmpty()) {
             $skillScore = 50;
