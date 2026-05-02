@@ -6113,7 +6113,7 @@ export default function MatchScoreBadge({ score }) {
     const tier = score >= 80 ? 'high' : score >= 50 ? 'medium' : 'low';
 
     return (
-        <span className={`match-badge match-badge-${tier}`}>
+        <span className={`match-badge match-${tier}`}>
             {score}% match
         </span>
     );
