@@ -6899,9 +6899,456 @@ If there is no CV, render muted text with `form-help` or disable a `btn btn-ghos
 
 ---
 
-## Slice 8 - Admin Dashboard
+## Slice 8 - Student + Company Dashboards
 
-**Why last:** Aggregates from all the data now in the system.
+**Why now:** Login already sends students to `/student/dashboard` and companies to `/company/dashboard`, but the starter dashboard is still empty. Build useful role-specific dashboard content before adding the separate admin dashboard.
+
+### Slice Contract
+
+Build this slice to this exact shape.
+
+**Backend routes used in this slice:**
+
+No new backend routes are required. Reuse endpoints already created in earlier slices:
+
+```text
+GET /api/v1/student/profile
+GET /api/v1/student/applications
+GET /api/v1/student/recommendations
+GET /api/v1/company/internships
+GET /api/v1/company/applications
+```
+
+**Frontend file updated in this slice:**
+
+- `resources/js/pages/Dashboard.jsx`
+
+**Existing API files used in this slice:**
+
+- `resources/js/api/applicationApi.js`
+- `resources/js/api/internshipApi.js`
+- `resources/js/api/matchApi.js`
+- `resources/js/api/studentApi.js`
+
+**Student dashboard must show:**
+
+- Profile completion prompt if university, major, skills, or CV are missing.
+- Stat cards:
+  - Total applications
+  - Pending applications
+  - Accepted applications
+  - Best recommendation score
+- Recent applications, linking to `/student/applications`.
+- Top recommendations, linking to `/student/recommendations`.
+
+**Company dashboard must show:**
+
+- Stat cards:
+  - Total internships
+  - Open internships
+  - Archived internships
+  - Total applicants
+- Recent company internships, linking to `/company/internships`.
+- Recent applicants, linking to `/company/applications`.
+- Quick actions:
+  - Create internship
+  - View applicants
+  - View archived internships
+
+**React routes:**
+
+No new routes are required. Keep using:
+
+```jsx
+{ path: '/student/dashboard', element: <Dashboard /> }
+{ path: '/company/dashboard', element: <Dashboard /> }
+```
+
+`Dashboard.jsx` should read the authenticated user's role and render the matching dashboard.
+
+### Exact Frontend Files To Update In This Slice
+
+Update `resources/js/pages/Dashboard.jsx`:
+
+```jsx
+import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import * as applicationApi from '../api/applicationApi';
+import * as internshipApi from '../api/internshipApi';
+import * as matchApi from '../api/matchApi';
+import * as studentApi from '../api/studentApi';
+import ErrorAlert from '../components/common/ErrorAlert';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import InternshipCard from '../components/common/internships/InternshipCard';
+import MatchScoreBadge from '../components/match/MatchScoreBadge';
+
+function countByStatus(items, status) {
+    return items.filter((item) => item.status === status).length;
+}
+
+function StatCard({ label, value, note }) {
+    return (
+        <article className="stat-card">
+            <p className="stat-label">{label}</p>
+            <p className="stat-value">{value}</p>
+            {note && <p className="stat-note">{note}</p>}
+        </article>
+    );
+}
+
+function StudentDashboard() {
+    const [profile, setProfile] = useState(null);
+    const [applications, setApplications] = useState([]);
+    const [recommendations, setRecommendations] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        async function loadDashboard() {
+            try {
+                const [profileResponse, applicationsResponse, recommendationsResponse] = await Promise.all([
+                    studentApi.fetchProfile(),
+                    applicationApi.fetchMine(),
+                    matchApi.fetchRecommendations(),
+                ]);
+
+                setProfile(profileResponse.data.data ?? profileResponse.data);
+                setApplications(applicationsResponse.data.data ?? []);
+                setRecommendations(recommendationsResponse.data.data ?? []);
+            } catch {
+                setError('Could not load dashboard.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadDashboard();
+    }, []);
+
+    const missingProfileItems = useMemo(() => {
+        if (!profile) return [];
+
+        return [
+            !profile.university && 'university',
+            !profile.major && 'major',
+            !(profile.skills?.length > 0) && 'skills',
+            !profile.cv_url && 'CV',
+        ].filter(Boolean);
+    }, [profile]);
+
+    if (loading) return <LoadingSpinner label="Loading dashboard..." />;
+
+    const bestScore = recommendations[0]?.match_score ?? 0;
+    const recentApplications = applications.slice(0, 5);
+    const topRecommendations = recommendations.slice(0, 3);
+
+    return (
+        <>
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Student Dashboard</h1>
+                    <p className="page-subtitle">Track applications and focus on your strongest internship matches.</p>
+                </div>
+                <Link className="btn btn-primary" to="/student/recommendations">View recommendations</Link>
+            </div>
+
+            <ErrorAlert message={error} />
+
+            {missingProfileItems.length > 0 && (
+                <section className="hero-panel mb-4">
+                    <h2 className="section-title">Complete your profile</h2>
+                    <p className="section-copy">
+                        Add your {missingProfileItems.join(', ')} to improve recommendations and applications.
+                    </p>
+                    <Link className="btn btn-secondary mt-4" to="/student/profile">Update profile</Link>
+                </section>
+            )}
+
+            <section className="grid-stats">
+                <StatCard label="Applications" value={applications.length} />
+                <StatCard label="Pending" value={countByStatus(applications, 'pending')} />
+                <StatCard label="Accepted" value={countByStatus(applications, 'accepted')} />
+                <StatCard label="Best match" value={`${bestScore}%`} />
+            </section>
+
+            <section className="surface mt-4">
+                <div className="page-header">
+                    <div>
+                        <h2 className="section-title">Recent applications</h2>
+                        <p className="section-copy">Your latest submitted applications.</p>
+                    </div>
+                    <Link className="btn btn-secondary" to="/student/applications">View all</Link>
+                </div>
+
+                {recentApplications.length === 0 ? (
+                    <div className="empty-state">No applications yet.</div>
+                ) : (
+                    <div className="table-scroll">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Internship</th>
+                                    <th>Status</th>
+                                    <th>Match</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {recentApplications.map((application) => (
+                                    <tr key={application.id}>
+                                        <td>{application.internship?.title ?? 'Untitled internship'}</td>
+                                        <td><span className={`badge badge-${application.status}`}>{application.status}</span></td>
+                                        <td>{application.match_score}%</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+
+            <section className="mt-4">
+                <div className="page-header">
+                    <div>
+                        <h2 className="section-title">Top recommendations</h2>
+                        <p className="section-copy">Internships ranked by your current profile.</p>
+                    </div>
+                </div>
+                <div className="card-grid">
+                    {topRecommendations.map((internship) => (
+                        <InternshipCard key={internship.id} internship={internship} />
+                    ))}
+                </div>
+            </section>
+        </>
+    );
+}
+
+function CompanyDashboard() {
+    const [internships, setInternships] = useState([]);
+    const [archivedInternships, setArchivedInternships] = useState([]);
+    const [applications, setApplications] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        async function loadDashboard() {
+            try {
+                const [internshipsResponse, archivedResponse, applicationsResponse] = await Promise.all([
+                    internshipApi.fetchMine(),
+                    internshipApi.fetchArchived(),
+                    applicationApi.fetchForCompany(),
+                ]);
+
+                setInternships(internshipsResponse.data.data ?? []);
+                setArchivedInternships(archivedResponse.data.data ?? []);
+                setApplications(applicationsResponse.data.data ?? []);
+            } catch {
+                setError('Could not load dashboard.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadDashboard();
+    }, []);
+
+    if (loading) return <LoadingSpinner label="Loading dashboard..." />;
+
+    const openInternships = internships.filter((internship) => internship.status === 'open');
+    const recentInternships = internships.slice(0, 5);
+    const recentApplications = applications.slice(0, 5);
+
+    return (
+        <>
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Company Dashboard</h1>
+                    <p className="page-subtitle">Monitor internships and review incoming applicants.</p>
+                </div>
+                <Link className="btn btn-primary" to="/company/internships/create">Create internship</Link>
+            </div>
+
+            <ErrorAlert message={error} />
+
+            <section className="grid-stats">
+                <StatCard label="Internships" value={internships.length} />
+                <StatCard label="Open" value={openInternships.length} />
+                <StatCard label="Archived" value={archivedInternships.length} />
+                <StatCard label="Applicants" value={applications.length} />
+            </section>
+
+            <section className="surface mt-4">
+                <div className="page-header">
+                    <div>
+                        <h2 className="section-title">Quick actions</h2>
+                        <p className="section-copy">Jump into common company workflows.</p>
+                    </div>
+                </div>
+                <div className="row-actions">
+                    <Link className="btn btn-primary" to="/company/internships/create">Create internship</Link>
+                    <Link className="btn btn-secondary" to="/company/applications">View applicants</Link>
+                    <Link className="btn btn-ghost" to="/company/internships/archived">Archived internships</Link>
+                </div>
+            </section>
+
+            <section className="surface mt-4">
+                <div className="page-header">
+                    <div>
+                        <h2 className="section-title">Recent internships</h2>
+                        <p className="section-copy">Your latest internship posts.</p>
+                    </div>
+                    <Link className="btn btn-secondary" to="/company/internships">View all</Link>
+                </div>
+                <div className="table-scroll">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Location</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {recentInternships.map((internship) => (
+                                <tr key={internship.id}>
+                                    <td>{internship.title}</td>
+                                    <td><span className={`badge badge-${internship.status}`}>{internship.status}</span></td>
+                                    <td>{internship.location}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section className="surface mt-4">
+                <div className="page-header">
+                    <div>
+                        <h2 className="section-title">Recent applicants</h2>
+                        <p className="section-copy">Newest students waiting for review.</p>
+                    </div>
+                    <Link className="btn btn-secondary" to="/company/applications">View all</Link>
+                </div>
+                <div className="table-scroll">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Internship</th>
+                                <th>Match</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {recentApplications.map((application) => (
+                                <tr key={application.id}>
+                                    <td>{application.student?.name ?? 'Unknown student'}</td>
+                                    <td>{application.internship?.title ?? 'Untitled internship'}</td>
+                                    <td><MatchScoreBadge score={application.match_score} /></td>
+                                    <td><span className={`badge badge-${application.status}`}>{application.status}</span></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </>
+    );
+}
+
+export default function Dashboard() {
+    const { role } = useAuth();
+
+    if (role === 'student') {
+        return <StudentDashboard />;
+    }
+
+    if (role === 'company') {
+        return <CompanyDashboard />;
+    }
+
+    return (
+        <section className="empty-state">
+            <h1 className="empty-state-title">Dashboard unavailable</h1>
+            <p className="empty-state-copy">This dashboard is not configured for your role.</p>
+        </section>
+    );
+}
+```
+
+### Frontend Walkthrough
+
+#### Step 1 - Replace the starter dashboard
+
+**Goal:** Turn the placeholder dashboard into useful role-specific pages.
+
+**Why we do this:** Students and companies already land on dashboard routes after login. Empty pages make the product feel unfinished even though the underlying features exist.
+
+**What this does:** `Dashboard.jsx` reads auth role and delegates to `StudentDashboard` or `CompanyDashboard`.
+
+**Do this:** Replace the starter content in `resources/js/pages/Dashboard.jsx` with the role-aware implementation above.
+
+**Check:** `/student/dashboard` shows student metrics and `/company/dashboard` shows company metrics.
+
+#### Step 2 - Build student dashboard data
+
+**Goal:** Summarize the student's next actions.
+
+**Why we do this:** Students should immediately see whether their profile needs work, how applications are progressing, and which internships are best matches.
+
+**What this does:** Fetches profile, applications, and recommendations in parallel.
+
+**Do this:** Use `studentApi.fetchProfile()`, `applicationApi.fetchMine()`, and `matchApi.fetchRecommendations()`.
+
+**Check:** Missing profile fields show a profile completion prompt. Applications and recommendations render without extra per-card score requests.
+
+#### Step 3 - Build company dashboard data
+
+**Goal:** Summarize company posting and applicant activity.
+
+**Why we do this:** Companies need a home page that points them toward creating internships and reviewing applicants.
+
+**What this does:** Fetches company internships, archived internships, and company applications in parallel.
+
+**Do this:** Use `internshipApi.fetchMine()`, `internshipApi.fetchArchived()`, and `applicationApi.fetchForCompany()`.
+
+**Check:** Stats update when internships or applications exist.
+
+#### Step 4 - Use existing design classes
+
+**Goal:** Keep dashboards consistent with the rest of the app.
+
+**Why we do this:** The dashboard should feel like part of the product, not a separate prototype.
+
+**What this does:** Uses `page-header`, `grid-stats`, `stat-card`, `surface`, `table-scroll`, `data-table`, `badge`, `btn`, `empty-state`, and `card-grid`.
+
+**Do this:** Avoid dashboard-only CSS unless the existing classes cannot express the layout.
+
+**Check:** Dashboard sections align with internship/application pages and work on mobile widths.
+
+### Postman / Browser Verification
+
+- [ ] Student login lands on `/student/dashboard`.
+- [ ] Student dashboard shows profile completion prompt when profile is incomplete.
+- [ ] Student dashboard shows application stats and recent applications.
+- [ ] Student dashboard shows top recommendations with match badges.
+- [ ] Company login lands on `/company/dashboard`.
+- [ ] Company dashboard shows internship and applicant stats.
+- [ ] Company dashboard links to create internship, company internships, archived internships, and applicants.
+
+### Exit Criteria
+
+- Student dashboard is no longer empty.
+- Company dashboard is no longer empty.
+- No new backend endpoints were added only for summary data.
+- Admin dashboard remains separate and is implemented in the next slice.
+
+---
+
+## Slice 9 - Admin Dashboard
+
+**Why now:** Admin needs aggregate visibility after the student, company, internship, application, matching, and role dashboard workflows exist.
 
 ### Slice Contract
 
@@ -7663,9 +8110,9 @@ Use `alert alert-error` for failed API calls and `empty-state` for missing table
 
 ---
 
-## Slice 9 - Polish, Test, Document
+## Slice 10 - Polish, Test, Document
 
-**Final pass before submission.**
+**Test, documentation, and workflow pass before the final design hardening slice.**
 
 ### Slice Contract
 
@@ -8270,9 +8717,9 @@ Pay special attention to pages using:
 
 ---
 
-## Slice 10 - Final Product Polish + Design Hardening
+## Slice 11 - Final Product Polish + Design Hardening
 
-**Final refinement pass after Slice 9.**
+**Final refinement pass after Slice 10.**
 
 This slice should not introduce large new features. It is for small, high-impact improvements that make the app feel complete and for backend design checks that are easy to miss when building vertical slices quickly.
 
@@ -8673,7 +9120,7 @@ import CompanyProfile from '../pages/company/Profile';
 },
 ```
 
-If the admin sidebar keeps `/admin/companies`, `/admin/internships`, and `/admin/users`, add matching guarded pages/routes for them in Slice 8 or hide those links until the pages exist. Do not leave visible nav links that route to missing pages.
+If the admin sidebar keeps `/admin/companies`, `/admin/internships`, and `/admin/users`, add matching guarded pages/routes for them in Slice 9 or hide those links until the pages exist. Do not leave visible nav links that route to missing pages.
 
 #### Step 5 - Add status and role badges
 
@@ -8791,7 +9238,7 @@ export default function StatusBadge({ value }) {
 
 ### Verification Checklist
 
-Run the full verification set after Slice 10 changes:
+Run the full verification set after Slice 11 changes:
 
 ```bash
 php artisan migrate:fresh --seed
@@ -8814,8 +9261,8 @@ Manual QA:
 
 ### Exit Criteria
 
-- Slice 9 tests and documentation still pass.
-- Slice 10 hardening tests pass.
+- Slice 10 tests and documentation still pass.
+- Slice 11 hardening tests pass.
 - UI has no blank list pages, unconfirmed destructive actions, or duplicate-submit paths.
 - Backend has database constraints, transaction boundaries, and ownership tests for the risky flows.
 - The app is ready for demo/submission without needing explanatory excuses for rough edges.
@@ -9683,7 +10130,71 @@ export default function ApplicantRow({ application, onStatusChange }) {
 
 **Expected props:** `application` is one API resource row; `onStatusChange` calls the API and updates state.
 
-### Slice 8 - Admin Contracts
+### Slice 8 - Student + Company Dashboard Contracts
+
+#### `resources/js/pages/Dashboard.jsx`
+
+`Dashboard` should choose the role-specific dashboard from auth state:
+
+```jsx
+export default function Dashboard() {
+    const { role } = useAuth();
+
+    if (role === 'student') {
+        return <StudentDashboard />;
+    }
+
+    if (role === 'company') {
+        return <CompanyDashboard />;
+    }
+
+    return <EmptyState title="Dashboard unavailable" message="This dashboard is not configured for your role." />;
+}
+```
+
+Student dashboard data sources:
+
+```js
+const [profileResponse, applicationsResponse, recommendationsResponse] = await Promise.all([
+    studentApi.fetchProfile(),
+    applicationApi.fetchMine(),
+    matchApi.fetchRecommendations(),
+]);
+```
+
+Company dashboard data sources:
+
+```js
+const [internshipsResponse, archivedResponse, applicationsResponse] = await Promise.all([
+    internshipApi.fetchMine(),
+    internshipApi.fetchArchived(),
+    applicationApi.fetchForCompany(),
+]);
+```
+
+Expected dashboard classes:
+
+```text
+page-header
+grid-stats
+stat-card
+surface
+table-scroll
+data-table
+badge
+btn
+empty-state
+card-grid
+```
+
+Expected route behavior:
+
+```jsx
+{ path: '/student/dashboard', element: <Dashboard /> }
+{ path: '/company/dashboard', element: <Dashboard /> }
+```
+
+### Slice 9 - Admin Contracts
 
 #### Backend controller methods
 
@@ -9751,7 +10262,7 @@ const [loading, setLoading] = useState(true);
 const [error, setError] = useState(null);
 ```
 
-### Slice 9 - Polish Contracts
+### Slice 10 - Polish Contracts
 
 Use these checklists when the feature code already works.
 
@@ -9790,9 +10301,9 @@ try {
 
 Frontend route guards are for user experience. Backend guards are for real security.
 
-### Slice 10 - Final Product Polish + Design Hardening Contracts
+### Slice 11 - Final Product Polish + Design Hardening Contracts
 
-Use these contracts after Slice 9 passes and before demo/submission.
+Use these contracts after Slice 10 passes and before demo/submission.
 
 #### Shared polish components
 
@@ -9892,7 +10403,7 @@ npm run build
 | Database Design | 10% | Slices 2, 4, 5, and 10: normalized schema, FKs, indexes, unique constraints, pivot tables, soft deletes |
 | Security | 10% | Slices 1, 3, 5, and 10: Sanctum + RoleMiddleware + Policies + Form Requests validation + ownership tests |
 | Frontend Integration & UI/UX | 20% | All frontend tasks + Slices 9-10 polish |
-| Documentation & Deployment | 5% | Slice 9, with Slice 10 confirming docs still match the final app |
+| Documentation & Deployment | 5% | Slice 10, with Slice 11 confirming docs still match the final app |
 
 ---
 
