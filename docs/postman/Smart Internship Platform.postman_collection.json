@@ -1,0 +1,916 @@
+{
+  "info": {
+    "_postman_id": "4b4962d6-30fb-46f6-9d61-smart-internship",
+    "name": "Smart Internship Platform",
+    "description": "Master API collection for the Smart Internship Platform. Implemented requests are sourced from the current Laravel route list and frontend API modules through Slice 7. Planned requests are marked clearly where the current codebase does not yet expose a route.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Slice 1 - Authentication",
+      "description": "Current-source authentication and identity endpoints.",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/health", "host": ["{{api_url}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "Register Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.user?.email) pm.collectionVariables.set('student_email', json.user.email);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Student\",\n  \"email\": \"student{{$timestamp}}@example.test\",\n  \"password\": \"password\",\n  \"password_confirmation\": \"password\",\n  \"role\": \"student\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/register", "host": ["{{api_url}}"], "path": ["register"] }
+          }
+        },
+        {
+          "name": "Register Company",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.user?.email) pm.collectionVariables.set('company_email', json.user.email);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Company\",\n  \"email\": \"company{{$timestamp}}@example.test\",\n  \"password\": \"password\",\n  \"password_confirmation\": \"password\",\n  \"role\": \"company\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/register", "host": ["{{api_url}}"], "path": ["register"] }
+          }
+        },
+        {
+          "name": "Register Admin",
+          "description": "The current RegisterRequest accepts the admin enum. Seeded admin is also available as admin@example.com / password.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.user?.email) pm.collectionVariables.set('admin_email', json.user.email);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Admin\",\n  \"email\": \"admin{{$timestamp}}@example.test\",\n  \"password\": \"password\",\n  \"password_confirmation\": \"password\",\n  \"role\": \"admin\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/register", "host": ["{{api_url}}"], "path": ["register"] }
+          }
+        },
+        {
+          "name": "Login Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) {",
+                  "  pm.collectionVariables.set('student_token', json.token);",
+                  "  pm.collectionVariables.set('token', json.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{student_email}}\",\n  \"password\": \"password\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/login", "host": ["{{api_url}}"], "path": ["login"] }
+          }
+        },
+        {
+          "name": "Login Company",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) {",
+                  "  pm.collectionVariables.set('company_token', json.token);",
+                  "  pm.collectionVariables.set('token', json.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{company_email}}\",\n  \"password\": \"password\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/login", "host": ["{{api_url}}"], "path": ["login"] }
+          }
+        },
+        {
+          "name": "Login Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) {",
+                  "  pm.collectionVariables.set('admin_token', json.token);",
+                  "  pm.collectionVariables.set('token', json.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"password\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/login", "host": ["{{api_url}}"], "path": ["login"] }
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/me", "host": ["{{api_url}}"], "path": ["me"] }
+          }
+        },
+        {
+          "name": "Legacy Sanctum User",
+          "description": "Current unversioned route: GET /api/user.",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/user", "host": ["{{base_url}}"], "path": ["api", "user"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/logout", "host": ["{{api_url}}"], "path": ["logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slice 2 - Browse Internships",
+      "description": "Current-source read-only internship browsing endpoints.",
+      "item": [
+        {
+          "name": "List Skills",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const first = json.data?.[0];",
+                  "if (first?.id) pm.collectionVariables.set('skill_id', first.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/skills", "host": ["{{api_url}}"], "path": ["skills"] }
+          }
+        },
+        {
+          "name": "Browse Open Internships",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const first = json.data?.[0];",
+                  "if (first?.id) pm.collectionVariables.set('internship_id', first.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{api_url}}/internships?terms[]=developer&match=any&type=remote",
+              "host": ["{{api_url}}"],
+              "path": ["internships"],
+              "query": [
+                { "key": "terms[]", "value": "developer", "disabled": true },
+                { "key": "match", "value": "any", "disabled": true },
+                { "key": "type", "value": "remote", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Show Internship",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/internships/{{internship_id}}", "host": ["{{api_url}}"], "path": ["internships", "{{internship_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slice 3 - Company Internship Management",
+      "description": "Current-source company internship CRUD and archive endpoints.",
+      "item": [
+        {
+          "name": "Company Internships",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/company/internships", "host": ["{{api_url}}"], "path": ["company", "internships"] }
+          }
+        },
+        {
+          "name": "Create Company Internship",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data?.id) {",
+                  "  pm.collectionVariables.set('company_internship_id', json.data.id);",
+                  "  pm.collectionVariables.set('internship_id', json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman Backend Internship\",\n  \"description\": \"Build Laravel APIs and React interfaces for the internship platform.\",\n  \"requirements\": \"PHP, Laravel, REST APIs\",\n  \"location\": \"Cairo\",\n  \"type\": \"remote\",\n  \"starts_at\": \"2026-07-01\",\n  \"ends_at\": \"2026-09-30\",\n  \"skills\": [{{skill_id}}]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/company/internships", "host": ["{{api_url}}"], "path": ["company", "internships"] }
+          }
+        },
+        {
+          "name": "Update Internship",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman Backend Internship Updated\",\n  \"description\": \"Updated internship description from Postman.\",\n  \"requirements\": \"Laravel, API testing, React\",\n  \"location\": \"Remote\",\n  \"type\": \"hybrid\",\n  \"starts_at\": \"2026-07-15\",\n  \"ends_at\": \"2026-10-15\",\n  \"skills\": [{{skill_id}}]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/internships/{{company_internship_id}}", "host": ["{{api_url}}"], "path": ["internships", "{{company_internship_id}}"] }
+          }
+        },
+        {
+          "name": "Archive Internship",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/internships/{{company_internship_id}}/archive", "host": ["{{api_url}}"], "path": ["internships", "{{company_internship_id}}", "archive"] }
+          }
+        },
+        {
+          "name": "Archived Company Internships",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/company/internships/archived", "host": ["{{api_url}}"], "path": ["company", "internships", "archived"] }
+          }
+        },
+        {
+          "name": "Create Open Internship For Application Flow",
+          "description": "Creates a fresh open internship after the archive request so later student application and match-score requests have an open target.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data?.id) {",
+                  "  pm.collectionVariables.set('open_internship_id', json.data.id);",
+                  "  pm.collectionVariables.set('internship_id', json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman Open Internship\",\n  \"description\": \"Open internship used by the application and match-score slices.\",\n  \"requirements\": \"Laravel, communication, problem solving\",\n  \"location\": \"Cairo\",\n  \"type\": \"remote\",\n  \"starts_at\": \"2026-08-01\",\n  \"ends_at\": \"2026-10-31\",\n  \"skills\": [{{skill_id}}]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/company/internships", "host": ["{{api_url}}"], "path": ["company", "internships"] }
+          }
+        },
+        {
+          "name": "Delete Internship",
+          "description": "Destructive cleanup request. Run after dependent application tests.",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/internships/{{company_internship_id}}", "host": ["{{api_url}}"], "path": ["internships", "{{company_internship_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slice 4 - Student Profile + CV Upload",
+      "description": "Current-source student profile, skills, and CV endpoints.",
+      "item": [
+        {
+          "name": "Get Student Profile",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/student/profile", "host": ["{{api_url}}"], "path": ["student", "profile"] }
+          }
+        },
+        {
+          "name": "Update Student Profile",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"university\": \"Cairo University\",\n  \"major\": \"Computer Science\",\n  \"gpa\": 3.65,\n  \"graduation_year\": 2027,\n  \"bio\": \"Student profile updated from Postman.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/student/profile", "host": ["{{api_url}}"], "path": ["student", "profile"] }
+          }
+        },
+        {
+          "name": "Sync Student Skills",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skills\": [{{skill_id}}]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/student/skills", "host": ["{{api_url}}"], "path": ["student", "skills"] }
+          }
+        },
+        {
+          "name": "Upload Student CV",
+          "description": "Choose a local PDF, DOC, or DOCX file in Postman before sending.",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "cv", "type": "file", "src": [] }
+              ]
+            },
+            "url": { "raw": "{{api_url}}/student/profile/cv", "host": ["{{api_url}}"], "path": ["student", "profile", "cv"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slice 5 - Student Applications",
+      "description": "Current-source student application endpoints.",
+      "item": [
+        {
+          "name": "Apply to Internship",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data?.id) pm.collectionVariables.set('application_id', json.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I am excited to apply for this internship.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/internships/{{internship_id}}/applications", "host": ["{{api_url}}"], "path": ["internships", "{{internship_id}}", "applications"] }
+          }
+        },
+        {
+          "name": "Student Applications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const first = json.data?.[0];",
+                  "if (first?.id) pm.collectionVariables.set('application_id', first.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/student/applications", "host": ["{{api_url}}"], "path": ["student", "applications"] }
+          }
+        },
+        {
+          "name": "Show Application",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/applications/{{application_id}}", "host": ["{{api_url}}"], "path": ["applications", "{{application_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slice 6 - Match Score Logic",
+      "description": "Current-source match score and recommendation endpoints.",
+      "item": [
+        {
+          "name": "Internship Match Score",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/internships/{{internship_id}}/match-score", "host": ["{{api_url}}"], "path": ["internships", "{{internship_id}}", "match-score"] }
+          }
+        },
+        {
+          "name": "Student Recommendations",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/student/recommendations", "host": ["{{api_url}}"], "path": ["student", "recommendations"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slice 7 - Company Applicants",
+      "description": "Current-source company applicant list and status update endpoints.",
+      "item": [
+        {
+          "name": "Company Applications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const first = json.data?.[0];",
+                  "if (first?.id) pm.collectionVariables.set('application_id', first.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/company/applications", "host": ["{{api_url}}"], "path": ["company", "applications"] }
+          }
+        },
+        {
+          "name": "Update Application Status - Reviewed",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"reviewed\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/company/applications/{{application_id}}/status", "host": ["{{api_url}}"], "path": ["company", "applications", "{{application_id}}", "status"] }
+          }
+        },
+        {
+          "name": "Update Application Status - Accepted",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/company/applications/{{application_id}}/status", "host": ["{{api_url}}"], "path": ["company", "applications", "{{application_id}}", "status"] }
+          }
+        },
+        {
+          "name": "Update Application Status - Rejected",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"rejected\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/company/applications/{{application_id}}/status", "host": ["{{api_url}}"], "path": ["company", "applications", "{{application_id}}", "status"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slice 8 - Dashboard Data Sources",
+      "description": "Slice 8 does not require new backend routes in the current plan. These requests document the implemented APIs the dashboards compose.",
+      "item": [
+        {
+          "name": "Student Dashboard - Profile",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/student/profile", "host": ["{{api_url}}"], "path": ["student", "profile"] }
+          }
+        },
+        {
+          "name": "Student Dashboard - Applications",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/student/applications", "host": ["{{api_url}}"], "path": ["student", "applications"] }
+          }
+        },
+        {
+          "name": "Student Dashboard - Recommendations",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/student/recommendations", "host": ["{{api_url}}"], "path": ["student", "recommendations"] }
+          }
+        },
+        {
+          "name": "Company Dashboard - Internships",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/company/internships", "host": ["{{api_url}}"], "path": ["company", "internships"] }
+          }
+        },
+        {
+          "name": "Company Dashboard - Archived Internships",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/company/internships/archived", "host": ["{{api_url}}"], "path": ["company", "internships", "archived"] }
+          }
+        },
+        {
+          "name": "Company Dashboard - Applications",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/company/applications", "host": ["{{api_url}}"], "path": ["company", "applications"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slice 9 - Admin Dashboard (Planned)",
+      "description": "Planned API routes from the remaining slice plan. These are not present in the current route list yet.",
+      "item": [
+        {
+          "name": "Planned - Admin Dashboard Stats",
+          "description": "Expected future route: GET /api/v1/admin/dashboard.",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/admin/dashboard", "host": ["{{api_url}}"], "path": ["admin", "dashboard"] }
+          }
+        },
+        {
+          "name": "Planned - Admin Users",
+          "description": "Expected future route: GET /api/v1/admin/users.",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{api_url}}/admin/users?role=student&search=postman",
+              "host": ["{{api_url}}"],
+              "path": ["admin", "users"],
+              "query": [
+                { "key": "role", "value": "student", "disabled": true },
+                { "key": "search", "value": "postman", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Planned - Delete User",
+          "description": "Expected future route: DELETE /api/v1/admin/users/{user}.",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/admin/users/{{user_id}}", "host": ["{{api_url}}"], "path": ["admin", "users", "{{user_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slice 10 - Polish, Test, Document",
+      "description": "No new API routes are required by Slice 10. These current-source requests support smoke, validation, and documentation checks.",
+      "item": [
+        {
+          "name": "Smoke - Health",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/health", "host": ["{{api_url}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "Smoke - Authenticated User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/me", "host": ["{{api_url}}"], "path": ["me"] }
+          }
+        },
+        {
+          "name": "Validation - Invalid Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"missing@example.test\",\n  \"password\": \"wrong-password\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/login", "host": ["{{api_url}}"], "path": ["login"] }
+          }
+        },
+        {
+          "name": "Validation - Missing Internship Title",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"This should fail because title is required.\",\n  \"type\": \"remote\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/company/internships", "host": ["{{api_url}}"], "path": ["company", "internships"] }
+          }
+        },
+        {
+          "name": "Validation - Invalid Application Status",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shortlisted\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/company/applications/{{application_id}}/status", "host": ["{{api_url}}"], "path": ["company", "applications", "{{application_id}}", "status"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slice 11 - Final Polish + Hardening",
+      "description": "No new API routes are required by Slice 11. These current-source requests document security and role-boundary checks.",
+      "item": [
+        {
+          "name": "Unauthenticated Me Should Fail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/me", "host": ["{{api_url}}"], "path": ["me"] }
+          }
+        },
+        {
+          "name": "Student Cannot List Company Applications",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/company/applications", "host": ["{{api_url}}"], "path": ["company", "applications"] }
+          }
+        },
+        {
+          "name": "Company Cannot Access Student Profile",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{api_url}}/student/profile", "host": ["{{api_url}}"], "path": ["student", "profile"] }
+          }
+        },
+        {
+          "name": "Student Cannot Update Company Application Status",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/company/applications/{{application_id}}/status", "host": ["{{api_url}}"], "path": ["company", "applications", "{{application_id}}", "status"] }
+          }
+        },
+        {
+          "name": "Company Cannot Apply to Internship",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{company_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"This should be rejected because companies cannot apply.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{api_url}}/internships/{{internship_id}}/applications", "host": ["{{api_url}}"], "path": ["internships", "{{internship_id}}", "applications"] }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "api_url", "value": "http://127.0.0.1:8000/api/v1" },
+    { "key": "token", "value": "" },
+    { "key": "student_token", "value": "" },
+    { "key": "company_token", "value": "" },
+    { "key": "admin_token", "value": "" },
+    { "key": "student_email", "value": "" },
+    { "key": "company_email", "value": "" },
+    { "key": "admin_email", "value": "admin@example.com" },
+    { "key": "skill_id", "value": "1" },
+    { "key": "internship_id", "value": "1" },
+    { "key": "open_internship_id", "value": "1" },
+    { "key": "company_internship_id", "value": "1" },
+    { "key": "application_id", "value": "1" },
+    { "key": "user_id", "value": "1" }
+  ]
+}
